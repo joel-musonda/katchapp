@@ -19,7 +19,6 @@ import { CodeBlockWithPreview } from "./CodeBlockWithPreview";
 
 const MarkdownContent = lazy(() => import("./MarkdownContent"));
 
-
 interface PostCardProps {
   post: PostWithProfile;
   onLike: (postId: string, liked: boolean) => void;
@@ -100,8 +99,6 @@ const PostCard = memo(({ post, onLike, onBookmark, onDelete, onPostEdited }: Pos
     .toUpperCase()
     .slice(0, 2) || "??";
 
-
-
   const isOwner = user?.id === post.user_id;
 
   const [isTextExpanded, setIsTextExpanded] = useState(false);
@@ -155,15 +152,12 @@ const PostCard = memo(({ post, onLike, onBookmark, onDelete, onPostEdited }: Pos
     const text = post.content.trim();
     if (!text) return true;
     
-    // If it contains characters from non-Latin scripts (Cyrillic, Arabic, CJK, Bengali, Hindi, Thai, Hebrew, Greek, etc), it's definitely not English
     // eslint-disable-next-line no-misleading-character-class
     const hasOtherScripts = /[\u0400-\u04FF\u0600-\u06FF\u4E00-\u9FFF\u3040-\u30FF\uAC00-\uD7AF\u0980-\u09FF\u0900-\u097F\u0E00-\u0E7F\u0370-\u03FF\u0590-\u05FF\u0B80-\u0BFF\u0A80-\u0AFF\u0C00-\u0C7F]/.test(text);
     if (hasOtherScripts) return false;
     
-    // Check for common English words (most effective heuristic for Latin-script text)
     const commonEnglishWords = /\b(the|and|is|it|you|that|in|was|for|on|are|with|as|I|be|at|have|from|this|but|his|by|they|we|say|her|she|or|an|will|my|one|all|would|there|their|what|so|up|out|if|about|who|get|which|go|me)\b/i;
     
-    // It's English if it has English words or it's very short and only ASCII
     // eslint-disable-next-line no-control-regex
     return commonEnglishWords.test(text) || (text.length < 30 && !/[^\x00-\x7F]/.test(text));
   }, [post.content]);
@@ -174,7 +168,7 @@ const PostCard = memo(({ post, onLike, onBookmark, onDelete, onPostEdited }: Pos
 
   const qnaMatch = useMemo(() => {
     if (post.is_readme) return null;
-    const match = rawContent.match(/^Q:\s*"([\s\S]+?)"\s*\nsent with genjutsu QnA\s*\n\s*\n\s*A:\s*([\s\S]*)$/);
+    const match = rawContent.match(/^Q:\s*"([\s\S]+?)"\s*\nsent with katchapp QnA\s*\n\s*\n\s*A:\s*([\s\S]*)$/);
     return match;
   }, [rawContent, post.is_readme]);
 
@@ -207,7 +201,6 @@ const PostCard = memo(({ post, onLike, onBookmark, onDelete, onPostEdited }: Pos
       return;
     }
 
-    // If it's already English, don't perform translation
     if (isAlreadyEnglish) {
       toast.info("This post is already in English.");
       return;
@@ -215,7 +208,6 @@ const PostCard = memo(({ post, onLike, onBookmark, onDelete, onPostEdited }: Pos
 
     try {
       setIsTranslating(true);
-      // Replace with your actual local server URL
       const apiUrl = getConfig().VITE_LANG_SERVICE;
       const response = await fetch(`${apiUrl}/api/translate`, {
         method: 'POST',
@@ -256,7 +248,6 @@ const PostCard = memo(({ post, onLike, onBookmark, onDelete, onPostEdited }: Pos
 
   const handleShare = async () => {
     const url = `${window.location.origin}/post/${post.id}`;
-
     const result = await shareWithFallback({ url });
     if (result === "copied") {
       toast.success("Link copied to clipboard!");
@@ -265,20 +256,19 @@ const PostCard = memo(({ post, onLike, onBookmark, onDelete, onPostEdited }: Pos
     }
   };
 
-
   return (
     <motion.article
       ref={articleRef}
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      whileHover={{ y: -4, scale: 1.01 }}
+      whileHover={{ y: -2, scale: 1.005 }}
       transition={{ type: "spring", stiffness: 300, damping: 20 }}
-      className="gum-card p-5 mb-4"
+      className="bg-black/[0.02] dark:bg-zinc-900/40 border border-black/[0.06] rounded-2xl p-5 mb-4 shadow-xs transition-colors"
     >
       <div className="flex gap-3">
         <button
           onClick={() => navigate(`/u/${post.profiles?.username}`)}
-          className="w-10 h-10 rounded-[3px] gum-border bg-secondary flex items-center justify-center font-bold text-sm shrink-0 overflow-hidden hover:opacity-80 transition-opacity"
+          className="w-10 h-10 rounded-full bg-black/5 dark:bg-white/10 flex items-center justify-center font-bold text-sm shrink-0 overflow-hidden hover:opacity-80 transition-opacity text-black dark:text-white"
         >
           {post.profiles?.avatar_url ? (
             <img src={post.profiles.avatar_url} alt={post.profiles.username} className="w-full h-full object-cover" loading="lazy" />
@@ -291,18 +281,18 @@ const PostCard = memo(({ post, onLike, onBookmark, onDelete, onPostEdited }: Pos
                 onClick={() => navigate(`/u/${post.profiles?.username}`)}
                 className="flex items-center gap-1 group text-left min-w-0 overflow-hidden"
               >
-                <span className="font-bold text-sm group-hover:underline truncate shrink-0 max-w-[140px] xs:max-w-[180px] sm:max-w-[220px]">{post.profiles?.display_name || "Unknown"}</span>
-                <span className="text-muted-foreground text-sm truncate shrink ml-1">@{post.profiles?.username || "?"}</span>
-                <span className="text-muted-foreground text-xs shrink-0 whitespace-nowrap ml-1">· {timeAgo(post.created_at)}</span>
+                <span className="font-bold text-sm text-black dark:text-white group-hover:underline truncate shrink-0 max-w-[140px] xs:max-w-[180px] sm:max-w-[220px]">{post.profiles?.display_name || "Unknown"}</span>
+                <span className="text-black/50 dark:text-white/50 text-sm truncate shrink ml-1">@{post.profiles?.username || "?"}</span>
+                <span className="text-black/40 dark:text-white/40 text-xs shrink-0 whitespace-nowrap ml-1">· {timeAgo(post.created_at)}</span>
                 {post.edited_at && (
-                  <span className="text-muted-foreground text-[10px] shrink-0 whitespace-nowrap ml-1">(edited)</span>
+                  <span className="text-black/40 dark:text-white/40 text-[10px] shrink-0 whitespace-nowrap ml-1">(edited)</span>
                 )}
               </button>
               <div className="flex items-center gap-2 sm:ml-2 mt-0.5 sm:mt-0">
-                <span className="text-primary/70 text-[9px] font-bold shrink-0 whitespace-nowrap">
+                <span className="text-black/70 dark:text-white/70 text-[10px] font-bold shrink-0 whitespace-nowrap">
                   [{getTimeRemaining(post.created_at)}]
                 </span>
-                <span className="shrink-0 inline-flex items-center gap-1 text-muted-foreground text-[10px] font-medium" title="Views">
+                <span className="shrink-0 inline-flex items-center gap-1 text-black/50 dark:text-white/50 text-[10px] font-medium" title="Views">
                   <Eye size={12} />
                   {viewCount}
                 </span>
@@ -311,26 +301,30 @@ const PostCard = memo(({ post, onLike, onBookmark, onDelete, onPostEdited }: Pos
             {isOwner && (
               <div className="relative" ref={menuRef}>
                 <button
+                  type="button"
+                  aria-label="Open post menu"
                   onClick={() => setShowMenu(!showMenu)}
-                  className="p-1 rounded-[3px] hover:bg-secondary transition-colors"
+                  className="p-1.5 rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition-colors text-black/60 dark:text-white/60"
                 >
-                  <MoreHorizontal size={16} className="text-muted-foreground" />
+                  <MoreHorizontal size={16} />
                 </button>
                 {showMenu && (
-                  <div className="absolute right-0 top-8 gum-card p-1 z-50 min-w-[120px] shadow-xl animate-in fade-in slide-in-from-top-2">
+                  <div className="absolute right-0 top-8 bg-white dark:bg-zinc-900 p-1.5 z-50 min-w-[120px] shadow-2xl rounded-2xl border border-black/5 animate-in fade-in slide-in-from-top-2">
                     <button
+                      type="button"
                       onClick={() => {
                         setIsEditDialogOpen(true);
                         setShowMenu(false);
                       }}
-                      className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-secondary rounded-[3px] transition-colors"
+                      className="flex items-center gap-2 w-full px-3 py-2 text-xs font-medium hover:bg-black/5 dark:hover:bg-white/10 rounded-xl transition-colors text-black dark:text-white"
                     >
                       <Pencil size={14} />
                       Edit
                     </button>
                     <button
+                      type="button"
                       onClick={() => { onDelete?.(post.id); setShowMenu(false); }}
-                      className="flex items-center gap-2 w-full px-3 py-2 text-sm text-destructive hover:bg-secondary rounded-[3px] transition-colors"
+                      className="flex items-center gap-2 w-full px-3 py-2 text-xs font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-xl transition-colors"
                     >
                       <Trash2 size={14} />
                       Delete
@@ -361,20 +355,20 @@ const PostCard = memo(({ post, onLike, onBookmark, onDelete, onPostEdited }: Pos
             </Suspense>
           ) : qnaMatch ? (
             <div className="mt-2 flex flex-col gap-3">
-              <div className="bg-secondary/45 border border-border/80 rounded-[3px] p-3.5 gum-shadow-sm relative overflow-hidden">
-                <div className="text-[10px] font-black uppercase tracking-wider text-primary mb-1">
+              <div className="bg-black/[0.03] dark:bg-zinc-900/60 border border-black/[0.06] dark:border-white/10 rounded-2xl p-4 shadow-xs relative overflow-hidden">
+                <div className="text-[10px] font-black uppercase tracking-wider text-black/70 dark:text-white/70 mb-1">
                   Question (Anonymous)
                 </div>
-                <p className="text-sm font-bold italic leading-relaxed text-foreground whitespace-pre-wrap break-words">
+                <p className="text-sm font-bold italic leading-relaxed text-black dark:text-white whitespace-pre-wrap break-words">
                   "{qnaMatch[1]}"
                 </p>
-                <div className="text-[9px] font-semibold text-muted-foreground mt-2 uppercase tracking-widest">
-                  sent with genjutsu QnA
+                <div className="text-[9px] font-semibold text-black/40 dark:text-white/40 mt-2 uppercase tracking-widest">
+                  sent with katchapp QnA
                 </div>
               </div>
 
-              <div className="text-sm leading-relaxed whitespace-pre-wrap break-words">
-                <div className="text-[10px] font-black uppercase tracking-wider text-muted-foreground mb-1">
+              <div className="text-sm leading-relaxed whitespace-pre-wrap break-words text-black/90 dark:text-white/95">
+                <div className="text-[10px] font-black uppercase tracking-wider text-black/50 dark:text-white/50 mb-1">
                   Answer
                 </div>
                 <p>
@@ -383,8 +377,9 @@ const PostCard = memo(({ post, onLike, onBookmark, onDelete, onPostEdited }: Pos
 
                 {isLongPost && (
                   <button
+                    type="button"
                     onClick={() => setIsTextExpanded(!isTextExpanded)}
-                    className="text-primary font-semibold mt-1 hover:underline focus:outline-none text-sm"
+                    className="text-black dark:text-white font-semibold mt-1 hover:underline focus:outline-none text-xs"
                   >
                     {isTextExpanded ? 'See Less' : 'See More'}
                   </button>
@@ -392,15 +387,16 @@ const PostCard = memo(({ post, onLike, onBookmark, onDelete, onPostEdited }: Pos
               </div>
             </div>
           ) : (
-            <div className="mt-2 text-sm leading-relaxed whitespace-pre-wrap break-words">
+            <div className="mt-2 text-sm leading-relaxed whitespace-pre-wrap break-words text-black/90 dark:text-white/95">
               <p>
                 {linkify(displayContent)}
               </p>
 
               {isLongPost && (
                 <button
+                  type="button"
                   onClick={() => setIsTextExpanded(!isTextExpanded)}
-                  className="text-primary font-semibold mt-1 hover:underline focus:outline-none text-sm"
+                  className="text-black dark:text-white font-semibold mt-1 hover:underline focus:outline-none text-xs"
                 >
                   {isTextExpanded ? 'See Less' : 'See More'}
                 </button>
@@ -411,11 +407,11 @@ const PostCard = memo(({ post, onLike, onBookmark, onDelete, onPostEdited }: Pos
           {post.media_url && (
             <>
               <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
+                whileHover={{ scale: 1.01 }}
+                whileTap={{ scale: 0.99 }}
                 type="button"
                 onClick={() => setIsImagePreviewOpen(true)}
-                className="mt-3 w-full rounded-[3px] gum-border overflow-hidden bg-muted cursor-pointer hover:opacity-95 transition-opacity block"
+                className="mt-3 w-full rounded-2xl border border-black/[0.08] dark:border-white/10 overflow-hidden bg-black/5 dark:bg-white/5 cursor-pointer hover:opacity-95 transition-opacity block"
               >
                 <DataSaverImage
                   src={post.media_url}
@@ -454,7 +450,7 @@ const PostCard = memo(({ post, onLike, onBookmark, onDelete, onPostEdited }: Pos
                     e.stopPropagation();
                     navigate(`/search?q=${encodeURIComponent(tag.startsWith('#') ? tag : '#' + tag)}`);
                   }}
-                  className="inline-flex items-center gap-1 text-xs font-mono font-medium bg-secondary px-2.5 py-1 rounded-[3px] gum-border gum-shadow-sm cursor-pointer hover:bg-primary/10 hover:border-primary/50 transition-all active:scale-95"
+                  className="inline-flex items-center gap-1 text-xs font-mono font-medium bg-black/[0.04] dark:bg-white/5 px-3 py-1 rounded-full border border-black/[0.06] dark:border-white/10 cursor-pointer hover:bg-black/[0.08] dark:hover:bg-white/10 transition-all active:scale-95 text-black/80 dark:text-white/80"
                 >
                   <Hash size={10} />
                   {tag}
@@ -463,13 +459,12 @@ const PostCard = memo(({ post, onLike, onBookmark, onDelete, onPostEdited }: Pos
             </div>
           )}
 
-
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 sm:gap-x-6 mt-4 pt-3 border-t border-secondary">
-            <div className="shrink-0 inline-flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 sm:gap-x-6 mt-4 pt-3 border-t border-black/[0.06] dark:border-white/10 text-black/60 dark:text-white/60">
+            <div className="shrink-0 inline-flex items-center gap-1.5">
               <motion.button
+                type="button"
                 onClick={handleLikeClick}
-                className={`inline-flex items-center text-xs font-medium transition-colors ${post.user_liked ? "text-red-500" : "text-muted-foreground hover:text-red-500"
-                  } relative`}
+                className={`p-1.5 rounded-full transition-colors ${post.user_liked ? "text-red-500 bg-red-500/10" : "hover:bg-black/5 dark:hover:bg-white/10 hover:text-red-500"}`}
                 title={post.user_liked ? "Unlike post" : "Like post"}
                 aria-label={post.user_liked ? "Unlike post" : "Like post"}
                 whileHover={{ scale: 1.15 }}
@@ -519,25 +514,27 @@ const PostCard = memo(({ post, onLike, onBookmark, onDelete, onPostEdited }: Pos
               <button
                 type="button"
                 onClick={() => setIsLikesDialogOpen(true)}
-                className={`text-xs font-medium px-1 py-0.5 rounded-[3px] underline underline-offset-2 decoration-dotted transition-colors ${post.user_liked ? "text-red-500 hover:text-red-600 hover:bg-red-500/10" : "text-muted-foreground hover:text-red-500 hover:bg-secondary"
-                  }`}
+                className={`text-xs font-medium px-1.5 py-0.5 rounded-full transition-colors ${post.user_liked ? "text-red-500 font-bold" : "hover:text-black dark:hover:text-white"}`}
                 title="View users who liked this post"
                 aria-label="View users who liked this post"
               >
                 {post.likes_count}
               </button>
             </div>
+
             <motion.div whileHover={{ scale: 1.15 }} whileTap={{ scale: 0.85 }} className="shrink-0 flex items-center">
               <Link
                 to={`/post/${post.id}`}
-                className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-primary transition-colors"
+                className="flex items-center gap-1.5 text-xs font-medium hover:text-black dark:hover:text-white transition-colors p-1.5 rounded-full hover:bg-black/5 dark:hover:bg-white/10"
               >
                 <MessageSquare size={15} />
-                {post.comments_count}
+                <span>{post.comments_count}</span>
               </Link>
             </motion.div>
+
             {!isOwner && (
               <motion.button
+                type="button"
                 whileHover={{ scale: 1.15 }}
                 whileTap={{ scale: 0.85 }}
                 onClick={() => {
@@ -547,33 +544,36 @@ const PostCard = memo(({ post, onLike, onBookmark, onDelete, onPostEdited }: Pos
                   }
                   navigate(`/whisper/${post.profiles?.username}`);
                 }}
-                className="shrink-0 flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-primary transition-colors"
+                className="shrink-0 flex items-center gap-1.5 text-xs font-medium hover:text-black dark:hover:text-white transition-colors p-1.5 rounded-full hover:bg-black/5 dark:hover:bg-white/10"
                 title="Whisper to author"
               >
                 <Send size={15} />
               </motion.button>
             )}
+
             <motion.button
+              type="button"
               whileHover={{ scale: 1.15 }}
               whileTap={{ scale: 0.85 }}
               onClick={() => onBookmark(post.id, post.user_bookmarked)}
-              className={`shrink-0 flex items-center gap-1.5 text-xs font-medium transition-colors ${post.user_bookmarked ? "text-yellow-500" : "text-muted-foreground hover:text-yellow-500"}`}
+              className={`shrink-0 flex items-center gap-1.5 text-xs font-medium transition-colors p-1.5 rounded-full hover:bg-black/5 dark:hover:bg-white/10 ${post.user_bookmarked ? "text-amber-500 bg-amber-500/10" : "hover:text-black dark:hover:text-white"}`}
+              title="Bookmark post"
             >
               <Bookmark size={15} fill={post.user_bookmarked ? "currentColor" : "none"} />
             </motion.button>
 
-            {/* Translation Button */}
             {!isAlreadyEnglish && (
               <motion.button
+                type="button"
                 whileHover={{ scale: 1.15 }}
                 whileTap={{ scale: 0.85 }}
                 onClick={handleTranslate}
                 disabled={isTranslating}
-                className={`shrink-0 flex items-center gap-1.5 text-xs font-medium transition-colors ${isShowingTranslation ? "text-primary font-bold" : "text-muted-foreground hover:text-foreground"}`}
+                className={`shrink-0 flex items-center gap-1.5 text-xs font-medium transition-colors px-2.5 py-1 rounded-full ${isShowingTranslation ? "bg-black/10 dark:bg-white/20 text-black dark:text-white font-semibold" : "hover:bg-black/5 dark:hover:bg-white/10 hover:text-black dark:hover:text-white"}`}
                 title={isShowingTranslation ? "Show Original" : "Translate to English"}
               >
                 {isTranslating ? (
-                  <FrogLoader size={15} className="" />
+                  <FrogLoader size={12} className="" />
                 ) : (
                   <Languages size={15} />
                 )}
@@ -584,10 +584,11 @@ const PostCard = memo(({ post, onLike, onBookmark, onDelete, onPostEdited }: Pos
             )}
 
             <motion.button
+              type="button"
               whileHover={{ scale: 1.15 }}
               whileTap={{ scale: 0.85 }}
               onClick={handleShare}
-              className="shrink-0 flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+              className="shrink-0 flex items-center gap-1.5 text-xs font-medium hover:text-black dark:hover:text-white transition-colors p-1.5 rounded-full hover:bg-black/5 dark:hover:bg-white/10 ml-auto"
               title="Share post"
             >
               <Share size={15} />

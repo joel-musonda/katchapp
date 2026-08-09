@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { compressImage } from "@/lib/imageCompression";
 import { useLocation } from "react-router-dom";
-import { Code, ImageIcon, Smile, Send, X } from "lucide-react";
+import { Code, ImageIcon, Send, X, FileText } from "lucide-react";
 import { FrogLoader } from "@/components/ui/FrogLoader";
 import { useMentions } from "@/hooks/useMentions";
 import { motion, AnimatePresence } from "framer-motion";
@@ -12,7 +12,6 @@ import remarkGemoji from "remark-gemoji";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import vscDarkPlus from "react-syntax-highlighter/dist/esm/styles/prism/vsc-dark-plus";
 import oneLight from "react-syntax-highlighter/dist/esm/styles/prism/one-light";
-import { FileText } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/hooks/useProfile";
 import { useTheme } from "./theme-provider";
@@ -70,12 +69,10 @@ const ComposePost = ({ onPost }: ComposePostProps) => {
     const state = location.state as { qnaQuestion?: string } | null;
     if (state?.qnaQuestion) {
       setContent(`Q: "${state.qnaQuestion}"
-sent with genjutsu QnA
+sent with katchapp QnA
 
 A: `);
-      // Clear the state so it doesn't re-trigger on re-render
       window.history.replaceState({}, document.title);
-      // Focus the textarea
       setTimeout(() => textareaRef.current?.focus(), 100);
     }
   }, [location.state]);
@@ -90,14 +87,13 @@ A: `);
     const textarea = textareaRef.current;
     if (textarea) {
       textarea.style.height = "auto";
-      const newHeight = Math.min(textarea.scrollHeight, 400); // Max height of 400px
+      const newHeight = Math.min(textarea.scrollHeight, 400);
       textarea.style.height = `${newHeight}px`;
       textarea.style.overflowY = textarea.scrollHeight > 400 ? "auto" : "hidden";
     }
   }, [content]);
 
   const extractTags = (text: string): string[] => {
-    // Unicode-aware regex to match hashtags in any language
     const matches = text.match(/#([\p{L}\p{N}_]+)/gu);
     return matches ? matches.map((t) => t.slice(1).toLowerCase()) : [];
   };
@@ -129,9 +125,8 @@ A: `);
         const file = items[i].getAsFile();
         if (file) {
           handleFiles(file);
-          // Optional: Prevent pasting the image as text if the browser tries to do both
           e.preventDefault();
-          break; // Stop after finding the first image
+          break;
         }
       }
     }
@@ -214,7 +209,6 @@ A: `);
     setMentionSearch("");
     clearSuggestions();
 
-    // Focus back on textarea
     if (textareaRef.current) {
       textareaRef.current.focus();
     }
@@ -232,7 +226,6 @@ A: `);
       }
 
       const tags = extractTags(content);
-      // Clean content only for normal posts to remove extracted hashtags and collapse spaces
       const postContent = isReadme
         ? content
         : content.replace(/#[\p{L}\p{N}_]+/gu, "").trim();
@@ -247,7 +240,6 @@ A: `);
       if (mediaPreview) URL.revokeObjectURL(mediaPreview);
       setMediaPreview(null);
     } catch (err: any) {
-      // Check for cooldown error from the server
       if (err?.message?.startsWith("COOLDOWN:")) {
         const seconds = parseInt(err.message.split(":")[1], 10);
         setCooldown(seconds);
@@ -269,13 +261,13 @@ A: `);
     <motion.div
       initial={{ opacity: 0, y: -10 }}
       animate={{ opacity: 1, y: 0 }}
-      className={`gum-card p-5 mb-6 transition-colors ${isDragging ? "border-primary bg-primary/5" : ""}`}
+      className={`bg-black/[0.02] dark:bg-zinc-900/40 border border-black/[0.06] rounded-2xl p-5 mb-6 transition-colors shadow-xs ${isDragging ? "border-black dark:border-white bg-black/[0.04]" : ""}`}
       onDrop={handleDrop}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
     >
       <div className="flex gap-3">
-        <div className="w-10 h-10 rounded-[3px] gum-border bg-secondary flex items-center justify-center font-bold text-sm shrink-0 overflow-hidden">
+        <div className="w-10 h-10 rounded-full bg-black/5 dark:bg-white/15 flex items-center justify-center font-bold text-sm shrink-0 overflow-hidden text-black dark:text-white">
           {profile?.avatar_url ? (
             <img src={profile.avatar_url} alt={profile.username} className="w-full h-full object-cover" loading="lazy" />
           ) : initials}
@@ -289,12 +281,12 @@ A: `);
             placeholder={t("feed.whatAreYouBuilding")}
             id="post-content"
             name="content"
-            className="w-full bg-transparent resize-none outline-none text-sm placeholder:text-muted-foreground min-h-[60px] custom-scrollbar"
+            className="w-full bg-transparent resize-none outline-none text-sm text-black dark:text-white placeholder:text-black/40 dark:placeholder:text-white/40 min-h-[60px] custom-scrollbar"
             rows={2}
           />
 
           {isReadme && showPreview && (
-            <div className="mt-3 p-4 rounded-[3px] gum-border bg-secondary/10 max-h-[400px] overflow-y-auto prose-readme custom-scrollbar">
+            <div className="mt-3 p-4 rounded-2xl border border-black/[0.08] dark:border-white/10 bg-black/[0.01] dark:bg-zinc-900/50 max-h-[400px] overflow-y-auto prose-readme custom-scrollbar text-black dark:text-white">
               <ReactMarkdown
                 remarkPlugins={[remarkGfm, remarkGemoji]}
                 components={{
@@ -305,7 +297,7 @@ A: `);
                         style={highlighterTheme}
                         language={match[1]}
                         PreTag="div"
-                        className="rounded-[3px] my-4"
+                        className="rounded-xl my-4"
                         {...props}
                       >
                         {String(children).replace(/\n$/, "")}
@@ -335,12 +327,13 @@ A: `);
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.95 }}
-                className="relative mt-3 rounded-[3px] gum-border overflow-hidden max-h-[300px]"
+                className="relative mt-3 rounded-2xl border border-black/[0.08] dark:border-white/10 overflow-hidden max-h-[300px] bg-black/5 dark:bg-white/5"
               >
                 <img src={getSafeUrl(mediaPreview)} alt="Preview" className="w-full h-full object-cover" />
                 <button
+                  type="button"
                   onClick={() => { setMediaFile(null); setMediaPreview(null); }}
-                  className="absolute top-2 right-2 p-1 bg-background/80 hover:bg-background rounded-full gum-border transition-colors"
+                  className="absolute top-2 right-2 p-1.5 bg-black/70 hover:bg-black text-white rounded-full transition-colors"
                 >
                   <X size={14} />
                 </button>
@@ -351,11 +344,11 @@ A: `);
           {showCode && (
             <div className="mt-3 relative">
               <div className="flex items-center justify-between mb-2 px-1">
-                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Code Snippet</span>
+                <span className="text-xs font-semibold text-black/60 dark:text-white/60 uppercase tracking-wider">Code Snippet</span>
                 <select
                   value={codeLanguage}
                   onChange={(e) => setCodeLanguage(e.target.value)}
-                  className="bg-secondary text-secondary-foreground text-xs rounded-[3px] px-2 py-1 outline-none border border-border cursor-pointer"
+                  className="bg-black/5 dark:bg-white/10 text-black dark:text-white text-xs rounded-xl px-2.5 py-1.5 outline-none border border-black/10 dark:border-white/10 cursor-pointer"
                 >
                   <option value="javascript">JavaScript</option>
                   <option value="typescript">TypeScript</option>
@@ -379,14 +372,14 @@ A: `);
                 placeholder="// Paste your code here..."
                 id="post-code"
                 name="code"
-                className="w-full bg-muted text-foreground font-mono text-xs p-3 rounded-[3px] gum-border resize-none outline-none min-h-[120px]"
+                className="w-full bg-black/[0.03] dark:bg-zinc-900/80 text-black dark:text-white font-mono text-xs p-3.5 rounded-2xl border border-black/[0.08] dark:border-white/10 resize-none outline-none min-h-[120px]"
                 rows={4}
               />
             </div>
           )}
 
-          <div className="flex items-center justify-between mt-3 pt-3 border-t border-secondary">
-            <div className="flex items-center gap-1">
+          <div className="flex items-center justify-between mt-3 pt-3 border-t border-black/[0.06] dark:border-white/10">
+            <div className="flex items-center gap-1.5">
               <input
                 type="file"
                 ref={fileInputRef}
@@ -397,42 +390,44 @@ A: `);
                 className="hidden"
               />
               <button
+                type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="p-2 rounded-[3px] hover:bg-secondary text-muted-foreground transition-colors"
+                className="p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/10 text-black/60 dark:text-white/60 transition-colors"
                 title="Upload Image"
               >
                 <ImageIcon size={16} />
               </button>
               <button
+                type="button"
                 onClick={() => setShowCode(!showCode)}
-                className={`p-2 rounded-[3px] transition-colors ${showCode ? "bg-primary text-primary-foreground" : "hover:bg-secondary text-muted-foreground"
-                  }`}
+                className={`p-2 rounded-full transition-colors ${showCode ? "bg-black text-white dark:bg-white dark:text-black" : "hover:bg-black/5 dark:hover:bg-white/10 text-black/60 dark:text-white/60"}`}
                 title="Add Code"
               >
                 <Code size={16} />
               </button>
               <button
+                type="button"
                 onClick={() => setIsReadme(!isReadme)}
-                className={`p-2 rounded-[3px] transition-colors ${isReadme ? "bg-primary text-primary-foreground" : "hover:bg-secondary text-muted-foreground"
-                  }`}
+                className={`p-2 rounded-full transition-colors ${isReadme ? "bg-black text-white dark:bg-white dark:text-black" : "hover:bg-black/5 dark:hover:bg-white/10 text-black/60 dark:text-white/60"}`}
                 title="Toggle README (Markdown)"
               >
                 <FileText size={16} />
               </button>
               {isReadme && (
                 <button
+                  type="button"
                   onClick={() => setShowPreview(!showPreview)}
-                  className={`text-[10px] font-bold px-2 py-1 rounded-[3px] gum-border uppercase tracking-tight transition-colors ${showPreview ? "bg-primary text-primary-foreground" : "hover:bg-secondary"
-                    }`}
+                  className={`text-[10px] font-bold px-2.5 py-1 rounded-full border border-black/10 dark:border-white/10 uppercase tracking-tight transition-colors ${showPreview ? "bg-black text-white dark:bg-white dark:text-black" : "hover:bg-black/5 dark:hover:bg-white/10 text-black/70 dark:text-white/70"}`}
                 >
                   {showPreview ? "Editor" : "Preview"}
                 </button>
               )}
             </div>
             <button
+              type="button"
               onClick={handleSubmit}
               disabled={!content.trim() || submitting || cooldown > 0}
-              className="gum-btn bg-primary text-primary-foreground text-sm disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
+              className="px-4 py-2 rounded-full bg-black text-white hover:bg-black/85 dark:bg-white dark:text-black dark:hover:bg-white/90 text-xs font-semibold transition-colors shadow-xs disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
             >
               {submitting ? <FrogLoader size={14} className="" /> : cooldown > 0 ? null : <Send size={14} />}
               {submitting ? "Posting..." : cooldown > 0 ? `Wait ${cooldown}s` : t("feed.castSpell")}

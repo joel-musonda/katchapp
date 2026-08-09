@@ -126,7 +126,7 @@ const initialState: ThemeProviderState = {
     color: "purple",
     customColor: "#8b5cf6",
     font: "Reddit Mono",
-    grid: "blueprint",
+    grid: "none", // Default changed from "blueprint" to "none"[cite: 10]
     radius: "default",
     emojiPack: "twemoji",
     animateColor: false,
@@ -173,7 +173,7 @@ export function ThemeProvider({
         return oneOf(getInitialItem("font"), fontValues, "Reddit Mono");
     });
     const [grid, setGridState] = useState<GridPreset>(() => {
-        return oneOf(getInitialItem("grid"), gridValues, "blueprint");
+        return oneOf(getInitialItem("grid"), gridValues, "none"); // Default fallback changed to "none"[cite: 10]
     });
     const [radius, setRadiusState] = useState<RadiusPreset>(() => {
         return oneOf(getInitialItem("radius"), radiusValues, "default");
@@ -217,7 +217,7 @@ export function ThemeProvider({
     const setSoundEnabled = (val: boolean) => { safeSetItem(`${storageKey}-soundEnabled`, String(val)); setSoundEnabledState(val); };
     const setShadowWalk = (val: boolean) => { safeSetItem(`${storageKey}-shadowWalk`, String(val)); setShadowWalkState(val); document.documentElement.setAttribute('data-shadow-walk', String(val)); };
 
-    // Mode + static color + radius effect
+    // Mode + static color + radius effect[cite: 10]
     useEffect(() => {
         const root = window.document.documentElement;
         root.classList.remove("light", "dark");
@@ -234,7 +234,7 @@ export function ThemeProvider({
         root.setAttribute("data-data-saver", String(dataSaver));
         root.setAttribute("data-shadow-walk", String(shadowWalk));
 
-        // Only apply static color when animation is off
+        // Only apply static color when animation is off[cite: 10]
         if (!animateColor) {
             const rootStyles = document.documentElement.style;
             if (color === "custom") {
@@ -253,11 +253,11 @@ export function ThemeProvider({
             }
         }
 
-        // Apply Radius
+        // Apply Radius[cite: 10]
         document.documentElement.style.setProperty('--radius', radiusPresets[radius]);
     }, [theme, preset, color, customColor, radius, emojiPack, animateColor, grid, dataSaver, shadowWalk]);
 
-    // Animated color loop — smooth 60fps hue cycling via requestAnimationFrame
+    // Animated color loop — smooth 60fps hue cycling via requestAnimationFrame[cite: 10]
     useEffect(() => {
         if (!animateColor) {
             if (rafRef.current !== null) {
@@ -268,7 +268,6 @@ export function ThemeProvider({
         }
 
         const tick = () => {
-            // ~0.3°/frame → full rainbow ≈ 20s at 60fps
             hueRef.current = (hueRef.current + 0.3) % 360;
             const hsl = `${hueRef.current.toFixed(1)} 70% 65%`;
             document.documentElement.style.setProperty('--primary', hsl);
@@ -286,7 +285,7 @@ export function ThemeProvider({
         };
     }, [animateColor]);
 
-    // Dynamic Font Injector Effect
+    // Dynamic Font Injector Effect[cite: 10]
     useEffect(() => {
         const rootStyles = document.documentElement.style;
         rootStyles.setProperty('--font-sans', fontFamilies[font]);

@@ -3,6 +3,8 @@
 // This program is licensed under the GNU Affero General Public License v3.0
 // See the LICENSE file or <https://www.gnu.org/licenses/> for details.
 
+
+
 import { lazy, Suspense, useEffect } from "react";
 import { FullScreenFrogLoader } from "@/components/ui/FrogLoader";
 import { MaintenancePage } from "@/components/MaintenancePage";

@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Reddit+Mono:wght@200..900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Reddit+Mono:wght@200..900&display=swap')[cite: 11];
 
 @tailwind base;
 @tailwind components;
@@ -293,35 +293,26 @@ html.dark[data-theme-preset="win95"] {
     position: relative;
   }
 
-  /* Fixed Background Layer for performance & visibility */
+  /* Clean Minimalist Background Layer (Grid removed) */
   body::before {
     content: "";
     position: fixed;
     inset: 0;
-    z-index: 0; /* Sit behind content but above body color */
+    z-index: 0;
     pointer-events: none;
-    /* Default fallback */
-    background-image: 
-      linear-gradient(hsl(var(--primary) / 0.07) 1px, transparent 1px),
-      linear-gradient(90deg, hsl(var(--primary) / 0.07) 1px, transparent 1px);
-    background-size: 40px 40px;
+    background-image: none;
   }
 
   html[data-grid="blueprint"] body::before {
-    background-image: 
-      linear-gradient(hsl(var(--primary) / 0.07) 1px, transparent 1px),
-      linear-gradient(90deg, hsl(var(--primary) / 0.07) 1px, transparent 1px);
-    background-size: 40px 40px;
+    background-image: none;
   }
 
   html[data-grid="dotted"] body::before {
-    background-image: radial-gradient(hsl(var(--primary) / 0.2) 1.5px, transparent 1.5px);
-    background-size: 24px 24px;
+    background-image: none;
   }
 
   html[data-grid="scanlines"] body::before {
-    background-image: linear-gradient(transparent 50%, hsl(var(--primary) / 0.05) 50%);
-    background-size: 100% 4px;
+    background-image: none;
   }
 
   html[data-grid="none"] body::before {

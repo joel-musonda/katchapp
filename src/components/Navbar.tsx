@@ -1,4 +1,4 @@
-import { Home, Search, User, LogOut, Settings, Palette, X, MessageCircle, Swords, UsersRound, LogIn, Bell, Shield, LayoutGrid, Gamepad2, Inbox } from "lucide-react";
+import { Home, Search, User, LogOut, Settings, Palette, X, MessageCircle, UsersRound, LogIn, Bell, Shield, LayoutGrid, Inbox, Compass } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/hooks/useProfile";
@@ -66,50 +66,58 @@ const Navbar = () => {
       <motion.header
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="sticky top-0 z-50 bg-background/95 backdrop-blur-sm border-b-2 border-border"
+        className="sticky top-0 z-50 bg-background/80 backdrop-blur-xl border-b border-black/[0.06] shadow-xs"
       >
-        <div className="max-w-6xl mx-auto px-4 h-14 md:h-16 flex items-center justify-between md:grid md:grid-cols-[1fr_auto_1fr] md:gap-4">
+        <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between md:grid md:grid-cols-[1fr_auto_1fr] md:gap-4">
+          
+          {/* Brand Logo */}
           <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
             onClick={() => navigate("/")}
-            className="flex items-center gap-1 sm:gap-2 shrink-0 rounded-[3px] md:px-2 md:py-1 md:hover:bg-secondary/60 transition-colors md:justify-self-start"
+            className="flex items-center gap-2.5 shrink-0 group md:justify-self-start focus:outline-none"
           >
-            <div className="w-8 h-8 rounded-[3px] overflow-hidden">
-              <img src="/logo.png" alt="genjutsu" className="w-full h-full object-contain" />
+            <div className="h-9 w-9 rounded-xl bg-black/5 flex items-center justify-center text-black font-bold text-lg transition-transform group-hover:scale-105">
+              K
             </div>
-            <span className="font-black text-lg tracking-tight text-primary">genjutsu</span>
+            <span className="font-sans font-bold text-xl tracking-tight text-black">
+              KatchApp
+            </span>
           </motion.button>
 
-          <nav className="hidden md:flex items-center gap-1 rounded-[3px] border-2 border-border bg-secondary/30 p-1 md:justify-self-center shadow-sm">
+          {/* Floating Glass Central Navigation */}
+          <nav className="hidden md:flex items-center gap-1 bg-black/[0.03] p-1.5 rounded-full shadow-inner md:justify-self-center backdrop-blur-sm">
             {[
-              { icon: Home, label: t("nav.feed"), path: "/" },
-              { icon: Search, label: t("nav.search"), path: "/search" },
-              { icon: MessageCircle, label: t("nav.whispers"), path: "/whispers" },
-              { icon: UsersRound, label: t("nav.stranger"), path: "/stranger" },
-              { icon: Swords, label: t("nav.play"), path: "/play" },
-              { icon: Gamepad2, label: t("nav.gameHouse"), path: "/game-house" },
-            ].map(({ icon: Icon, label, path }) => (
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                key={path}
-                onClick={() => navigate(path)}
-                className={`relative h-8 flex items-center gap-1.5 px-3 rounded-[2px] text-sm font-bold transition-all border-2 ${location.pathname === path
-                  ? "bg-background text-foreground border-border shadow-[1px_1px_0_theme(colors.border)]"
-                  : "border-transparent text-muted-foreground hover:text-foreground hover:bg-background/50"
+              { icon: Home, label: "Feed", path: "/" },
+              { icon: Compass, label: "Explore", path: "/search" },
+              { icon: MessageCircle, label: "Chats", path: "/whispers" },
+              { icon: UsersRound, label: "Connect", path: "/stranger" },
+            ].map(({ icon: Icon, label, path }) => {
+              const active = location.pathname === path;
+              return (
+                <motion.button
+                  whileHover={{ scale: 1.03 }}
+                  whileTap={{ scale: 0.97 }}
+                  key={path}
+                  onClick={() => navigate(path)}
+                  className={`relative h-9 flex items-center gap-2 px-4 rounded-full text-sm font-medium transition-all ${
+                    active
+                      ? "bg-white/80 dark:bg-white/10 text-black dark:text-white shadow-sm backdrop-blur-md font-semibold"
+                      : "text-black/60 dark:text-white/60 hover:text-black dark:hover:text-white hover:bg-black/[0.02]"
                   }`}
-              >
-                <Icon size={16} />
-                {label}
-                {path === "/whispers" && hasUnreadWhispers && (
-                  <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-primary border-2 border-background animate-pulse" />
-                )}
-              </motion.button>
-            ))}
+                >
+                  <Icon size={16} className={active ? "text-black dark:text-white" : "text-black/60 dark:text-white/60"} />
+                  <span>{label}</span>
+                  {path === "/whispers" && hasUnreadWhispers && (
+                    <span className="absolute top-1.5 right-2 w-2 h-2 rounded-full bg-black dark:bg-white animate-pulse" />
+                  )}
+                </motion.button>
+              );
+            })}
           </nav>
 
-          <div className="flex items-center gap-1 sm:gap-2 md:justify-self-end">
+          {/* Right Side Actions */}
+          <div className="flex items-center gap-2 md:justify-self-end">
             {!user && (
               <div className="hidden md:block">
                 <ModeToggle />
@@ -119,21 +127,21 @@ const Navbar = () => {
             {/* Mobile: Search button */}
             <button
               onClick={() => navigate("/search")}
-              className="md:hidden p-1.5 sm:p-2 rounded-[3px] hover:bg-secondary text-muted-foreground transition-colors gum-border"
-              title="Search"
+              className="md:hidden p-2 rounded-full hover:bg-black/5 text-black transition-colors"
+              title="Explore"
             >
-              <Search size={16} />
+              <Search size={18} />
             </button>
 
             {/* Mobile: Whispers button */}
             <button
               onClick={() => navigate("/whispers")}
-              className="md:hidden relative p-1.5 sm:p-2 rounded-[3px] hover:bg-secondary text-muted-foreground transition-colors gum-border"
-              title={t("nav.whispers")}
+              className="md:hidden relative p-2 rounded-full hover:bg-black/5 text-black transition-colors"
+              title="Chats"
             >
-              <MessageCircle size={16} />
+              <MessageCircle size={18} />
               {hasUnreadWhispers && (
-                <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-primary animate-pulse border-2 border-background" />
+                <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-black animate-pulse" />
               )}
             </button>
 
@@ -142,12 +150,14 @@ const Navbar = () => {
               <div className="relative" ref={notifRef}>
                 <button
                   onClick={() => setIsNotifOpen(!isNotifOpen)}
-                  className={`relative p-1.5 sm:p-2 rounded-[3px] transition-all md:border-2 md:hover:bg-secondary/50 ${isNotifOpen ? "bg-secondary text-foreground md:border-border md:shadow-[2px_2px_0_theme(colors.border)]" : "text-muted-foreground md:border-transparent md:hover:border-border"} max-md:gum-border max-md:hover:bg-secondary`}
+                  className={`relative p-2 rounded-full transition-all hover:bg-black/5 text-black ${
+                    isNotifOpen ? "bg-black/5 text-black" : ""
+                  }`}
                   title="Notifications"
                 >
-                  <Bell size={16} />
+                  <Bell size={18} />
                   {unreadCount > 0 && (
-                    <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-primary text-primary-foreground text-[9px] font-bold flex items-center justify-center leading-none">
+                    <span className="absolute top-1 right-1 min-w-[16px] h-4 px-1 rounded-full bg-black text-white text-[10px] font-bold flex items-center justify-center leading-none shadow-xs">
                       {unreadCount > 99 ? "99+" : unreadCount}
                     </span>
                   )}
@@ -160,7 +170,7 @@ const Navbar = () => {
                       animate={{ opacity: 1, y: 0, scale: 1 }}
                       exit={{ opacity: 0, y: 8, scale: 0.96 }}
                       transition={{ duration: 0.15 }}
-                      className="fixed left-4 right-4 sm:absolute sm:left-auto sm:right-0 sm:w-[360px] top-[60px] sm:top-full sm:mt-2 z-[80] gum-card bg-background shadow-xl overflow-hidden"
+                      className="fixed left-4 right-4 sm:absolute sm:left-auto sm:right-0 sm:w-[360px] top-[60px] sm:top-full sm:mt-2 z-[80] bg-white dark:bg-zinc-900 shadow-2xl rounded-2xl overflow-hidden border border-black/5"
                     >
                       <NotificationPanel
                         notifications={notifications}
@@ -175,30 +185,30 @@ const Navbar = () => {
               </div>
             )}
 
-
+            {/* User Profile Dropdown or Sign In */}
             {user ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <button className="flex items-center gap-1 sm:gap-2 group rounded-[3px] border-2 border-transparent md:hover:border-border md:px-2 md:py-1 md:hover:bg-secondary/30 transition-all">
-                    <div className="hidden md:flex flex-col items-end">
-                      <span className="text-sm font-bold group-hover:underline leading-none">{profile?.display_name}</span>
-                      <span className="text-[10px] text-muted-foreground leading-none mt-1">@{profile?.username}</span>
+                  <button className="flex items-center gap-2 group rounded-full p-1 hover:bg-black/5 transition-all focus:outline-none">
+                    <div className="hidden md:flex flex-col items-end pr-1">
+                      <span className="text-sm font-semibold text-black group-hover:text-black leading-tight">{profile?.display_name || "Creator"}</span>
+                      <span className="text-[11px] text-black/60 leading-tight">@{profile?.username || "user"}</span>
                     </div>
-                    <div className="w-8 h-8 rounded-[3px] gum-border bg-secondary flex items-center justify-center font-bold text-xs overflow-hidden transition-transform group-hover:scale-105 group-active:scale-95">
+                    <div className="w-9 h-9 rounded-full bg-black/5 flex items-center justify-center font-bold text-xs text-black overflow-hidden transition-transform group-hover:scale-105">
                       {profile?.avatar_url ? (
                         <img src={profile.avatar_url} alt={profile.username} className="w-full h-full object-cover" loading="lazy" />
                       ) : initials}
                     </div>
                   </button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-48 gum-border text-xs sm:text-sm">
-                  <div className="px-2 py-1.5 md:hidden border-b border-border mb-1">
-                    <p className="text-sm font-bold truncate">{profile?.display_name}</p>
-                    <p className="text-[10px] text-muted-foreground truncate">@{profile?.username}</p>
+                <DropdownMenuContent align="end" className="w-52 rounded-xl p-1 shadow-xl border border-black/5 bg-white dark:bg-zinc-900">
+                  <div className="px-3 py-2 md:hidden border-b border-black/5 mb-1">
+                    <p className="text-sm font-bold text-black dark:text-white truncate">{profile?.display_name}</p>
+                    <p className="text-xs text-black/60 dark:text-white/60 truncate">@{profile?.username}</p>
                   </div>
                   {isAdmin && (
-                    <DropdownMenuItem onClick={() => navigate("/admin")} className="cursor-pointer">
-                      <Shield className="mr-2 h-4 w-4" />
+                    <DropdownMenuItem onClick={() => navigate("/admin")} className="cursor-pointer rounded-lg py-2 text-black dark:text-white">
+                      <Shield className="mr-2 h-4 w-4 text-black/60 dark:text-white/60" />
                       <span>{t("nav.admin")}</span>
                     </DropdownMenuItem>
                   )}
@@ -208,25 +218,27 @@ const Navbar = () => {
                         navigate(`/u/${profile.username}`);
                       }
                     }}
-                    className={`cursor-pointer ${!profile?.username ? 'opacity-50' : ''}`}
+                    className={`cursor-pointer rounded-lg py-2 text-black dark:text-white ${!profile?.username ? 'opacity-50' : ''}`}
                     disabled={!profile?.username}
                   >
-                    <User className="mr-2 h-4 w-4" />
+                    <User className="mr-2 h-4 w-4 text-black/60 dark:text-white/60" />
                     <span>{profile?.username ? t("nav.profile") : 'Loading...'}</span>
                   </DropdownMenuItem>
 
-                  <DropdownMenuItem onClick={() => navigate("/qna-inbox")} className="cursor-pointer">
-                    <Inbox className="mr-2 h-4 w-4" />
-                    <span>QnA Inbox</span>
+                  <DropdownMenuItem onClick={() => navigate("/qna-inbox")} className="cursor-pointer rounded-lg py-2 text-black dark:text-white">
+                    <Inbox className="mr-2 h-4 w-4 text-black/60 dark:text-white/60" />
+                    <span>Inbox</span>
                   </DropdownMenuItem>
 
-                  <DropdownMenuItem onClick={() => navigate("/settings")} className="cursor-pointer">
-                    <Settings className="mr-2 h-4 w-4" />
+                  <DropdownMenuItem onClick={() => navigate("/settings")} className="cursor-pointer rounded-lg py-2 text-black dark:text-white">
+                    <Settings className="mr-2 h-4 w-4 text-black/60 dark:text-white/60" />
                     <span>{t("nav.settings")}</span>
                   </DropdownMenuItem>
-                  <DropdownMenuSeparator className="bg-border" />
-                  <DropdownMenuItem onClick={(e) => e.preventDefault()} className="flex items-center justify-between">
-                    <div className="flex items-center">
+                  
+                  <DropdownMenuSeparator className="my-1 bg-black/5" />
+                  
+                  <DropdownMenuItem onClick={(e) => e.preventDefault()} className="flex items-center justify-between py-2 rounded-lg focus:bg-transparent text-black dark:text-white">
+                    <div className="flex items-center text-black/60 dark:text-white/60">
                       <Palette className="mr-2 h-4 w-4" />
                       <span>{t("nav.theme")}</span>
                     </div>
@@ -237,20 +249,20 @@ const Navbar = () => {
             ) : (
               <button
                 onClick={() => navigate("/auth")}
-                className="p-1.5 sm:px-4 sm:py-1.5 rounded-[3px] gum-border bg-primary text-primary-foreground hover:bg-primary/90 transition-colors text-xs sm:text-sm flex items-center justify-center gap-2 whitespace-nowrap"
+                className="px-4 py-2 rounded-full bg-black text-white hover:bg-black/85 transition-colors text-sm font-medium flex items-center justify-center gap-2 shadow-xs whitespace-nowrap"
               >
                 <LogIn size={16} />
-                <span className="hidden sm:inline font-bold">{t("nav.signIn")}</span>
+                <span className="font-semibold">Sign In</span>
               </button>
             )}
 
-            {/* Mobile: Menu button — md:hidden */}
+            {/* Mobile: Menu button */}
             <button
               onClick={() => setIsDrawerOpen(true)}
-              className="md:hidden p-1.5 sm:p-2 rounded-[3px] hover:bg-secondary text-muted-foreground transition-colors gum-border"
+              className="md:hidden p-2 rounded-full hover:bg-black/5 text-black transition-colors"
               title="Menu"
             >
-              <LayoutGrid size={16} />
+              <LayoutGrid size={18} />
             </button>
           </div>
         </div>
@@ -258,135 +270,135 @@ const Navbar = () => {
 
       {/* Mobile Drawer */}
       <AnimatePresence>
-        {
-          isDrawerOpen && (
-            <>
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                onClick={() => setIsDrawerOpen(false)}
-                className="fixed inset-0 bg-background/80 backdrop-blur-sm z-[60] md:hidden"
-              />
-              <motion.div
-                initial={{ x: "100%" }}
-                animate={{ x: 0 }}
-                exit={{ x: "100%" }}
-                transition={{ type: "spring", damping: 25, stiffness: 200 }}
-                className="fixed right-0 top-0 bottom-0 w-[280px] bg-background border-l-2 border-border z-[70] md:hidden overflow-y-auto"
-              >
+        {isDrawerOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsDrawerOpen(false)}
+              className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[60] md:hidden"
+            />
+            <motion.div
+              initial={{ x: "100%" }}
+              animate={{ x: 0 }}
+              exit={{ x: "100%" }}
+              transition={{ type: "spring", damping: 25, stiffness: 220 }}
+              className="fixed right-0 top-0 bottom-0 w-[300px] bg-white dark:bg-zinc-900 z-[70] md:hidden overflow-y-auto shadow-2xl flex flex-col justify-between"
+            >
+              <div>
                 {/* Drawer Header */}
-                <div className="flex items-center justify-between p-4 border-b-2 border-border bg-secondary/30">
-                  <span className="font-black tracking-tight text-lg uppercase">{t("nav.menu")}</span>
-                  <button onClick={() => setIsDrawerOpen(false)} className="p-1.5 hover:bg-secondary rounded-[3px] transition-colors gum-border bg-background shadow-sm active:translate-y-px">
-                    <X size={16} />
+                <div className="flex items-center justify-between p-5 border-b border-black/5 bg-black/[0.02]">
+                  <span className="font-bold text-lg tracking-tight text-black dark:text-white">Menu</span>
+                  <button 
+                    onClick={() => setIsDrawerOpen(false)} 
+                    className="p-2 hover:bg-black/5 rounded-full transition-colors text-black dark:text-white"
+                  >
+                    <X size={18} />
                   </button>
                 </div>
 
-                <div className="p-4 space-y-5">
-                  {/* User Profile */}
+                <div className="p-5 space-y-6">
+                  {/* User Profile Snippet */}
                   {user && profile && (
                     <button
                       onClick={() => { if (profile?.username) { navigate(`/u/${profile.username}`); setIsDrawerOpen(false); } }}
-                      className="flex items-center gap-3 w-full hover:bg-secondary rounded-[3px] p-2 -mx-2 transition-colors"
+                      className="flex items-center gap-3 w-full hover:bg-black/5 rounded-xl p-2.5 -mx-2.5 transition-colors text-left"
                     >
-                      <div className="w-10 h-10 rounded-[3px] gum-border bg-secondary flex items-center justify-center font-bold text-sm overflow-hidden shrink-0">
+                      <div className="w-11 h-11 rounded-full bg-black/5 flex items-center justify-center font-bold text-sm text-black dark:text-white overflow-hidden shrink-0">
                         {profile?.avatar_url ? (
                           <img src={profile.avatar_url} alt={profile.username} className="w-full h-full object-cover" loading="lazy" />
                         ) : initials}
                       </div>
-                      <div className="text-left">
-                        <p className="text-sm font-bold leading-none">{profile?.display_name}</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">@{profile?.username}</p>
+                      <div className="overflow-hidden">
+                        <p className="text-sm font-bold truncate leading-tight text-black dark:text-white">{profile?.display_name}</p>
+                        <p className="text-xs text-black/60 dark:text-white/60 truncate mt-0.5">@{profile?.username}</p>
                       </div>
                     </button>
                   )}
 
-                  {/* NAVIGATE */}
+                  {/* NAVIGATE LINKS */}
                   <div>
-                    <p className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase mb-2 px-1">{t("nav.navigate")}</p>
-                    <div className="space-y-0.5">
+                    <p className="text-[11px] font-bold tracking-wider text-black/40 dark:text-white/40 uppercase mb-2 px-1">Navigation</p>
+                    <div className="space-y-1">
                       {[
-                        { icon: Home, label: t("nav.feed"), path: "/" },
-                        { icon: UsersRound, label: t("nav.stranger"), path: "/stranger" },
-                        { icon: Swords, label: t("nav.play"), path: "/play" },
-                        { icon: Gamepad2, label: t("nav.gameHouse"), path: "/game-house" },
+                        { icon: Home, label: "Feed", path: "/" },
+                        { icon: Compass, label: "Explore & Search", path: "/search" },
+                        { icon: MessageCircle, label: "Chats", path: "/whispers" },
+                        { icon: UsersRound, label: "Connect", path: "/stranger" },
                       ].map(({ icon: Icon, label, path }) => (
                         <button
                           key={path}
-                          onClick={() => {
-                            navigate(path); setIsDrawerOpen(false);
-                          }}
-                          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-[3px] text-sm font-medium transition-colors ${location.pathname === path
-                            ? "bg-primary/10 text-primary font-bold"
-                            : "hover:bg-secondary text-foreground"
-                            }`}
+                          onClick={() => { navigate(path); setIsDrawerOpen(false); }}
+                          className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                            location.pathname === path
+                              ? "bg-black/5 dark:bg-white/10 text-black dark:text-white font-semibold"
+                              : "hover:bg-black/5 text-black/80 dark:text-white/80"
+                          }`}
                         >
-                          <div className="relative">
-                            <Icon size={16} className={location.pathname === path ? "text-primary" : "text-muted-foreground"} />
-                          </div>
-                          {label}
+                          <Icon size={18} className={location.pathname === path ? "text-black dark:text-white" : "text-black/60 dark:text-white/60"} />
+                          <span>{label}</span>
                         </button>
                       ))}
                     </div>
                   </div>
 
-                  {/* ACCOUNT */}
+                  {/* ACCOUNT LINKS */}
                   {user && (
                     <div>
-                      <p className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase mb-2 px-1">{t("nav.account")}</p>
-                      <div className="space-y-0.5">
+                      <p className="text-[11px] font-bold tracking-wider text-black/40 dark:text-white/40 uppercase mb-2 px-1">Account</p>
+                      <div className="space-y-1">
                         {isAdmin && (
                           <button
                             onClick={() => { navigate("/admin"); setIsDrawerOpen(false); }}
-                            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-[3px] text-sm font-medium hover:bg-secondary transition-colors"
+                            className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium hover:bg-black/5 transition-colors text-black dark:text-white"
                           >
-                            <Shield size={16} className="text-muted-foreground" />
-                            {t("nav.admin")}
+                            <Shield size={18} className="text-black/60 dark:text-white/60" />
+                            <span>{t("nav.admin")}</span>
                           </button>
                         )}
                         <button
                           onClick={() => { if (profile?.username) { navigate(`/u/${profile.username}`); setIsDrawerOpen(false); } }}
-                          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-[3px] text-sm font-medium hover:bg-secondary transition-colors"
+                          className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium hover:bg-black/5 transition-colors text-black dark:text-white"
                         >
-                          <User size={16} className="text-muted-foreground" />
-                          {t("nav.profile")}
+                          <User size={18} className="text-black/60 dark:text-white/60" />
+                          <span>{t("nav.profile")}</span>
                         </button>
                         <button
                           onClick={() => { navigate("/settings"); setIsDrawerOpen(false); }}
-                          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-[3px] text-sm font-medium hover:bg-secondary transition-colors"
+                          className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium hover:bg-black/5 transition-colors text-black dark:text-white"
                         >
-                          <Settings size={16} className="text-muted-foreground" />
-                          {t("nav.settings")}
+                          <Settings size={18} className="text-black/60 dark:text-white/60" />
+                          <span>{t("nav.settings")}</span>
                         </button>
                       </div>
                     </div>
                   )}
 
-                  {/* DISCOVERY */}
+                  {/* DISCOVERY SIDEBAR COMPONENT */}
                   <div>
-                    <p className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase mb-2 px-1">{t("nav.discovery")}</p>
+                    <p className="text-[11px] font-bold tracking-wider text-black/40 dark:text-white/40 uppercase mb-2 px-1">Discover</p>
                     <Sidebar onAction={() => setIsDrawerOpen(false)} />
                   </div>
-
-                  {/* Footer */}
-                  <div className="border-t-2 border-border pt-4 flex items-center justify-between">
-                    <ModeToggle />
-                    {user && (
-                      <button
-                        onClick={() => { signOut(); setIsDrawerOpen(false); }}
-                        className="flex items-center gap-2 text-sm font-bold text-destructive hover:underline"
-                      >
-                        <LogOut size={14} />
-                        {t("nav.signOut")}
-                      </button>
-                    )}
-                  </div>
                 </div>
-              </motion.div>
-            </>
-          )
-        }
+              </div>
+
+              {/* Drawer Footer */}
+              <div className="p-5 border-t border-black/5 flex items-center justify-between bg-black/[0.02]">
+                <ModeToggle />
+                {user && (
+                  <button
+                    onClick={() => { signOut(); setIsDrawerOpen(false); }}
+                    className="flex items-center gap-2 text-sm font-semibold text-red-600 hover:underline"
+                  >
+                    <LogOut size={16} />
+                    <span>{t("nav.signOut")}</span>
+                  </button>
+                )}
+              </div>
+            </motion.div>
+          </>
+        )}
       </AnimatePresence>
     </>
   );

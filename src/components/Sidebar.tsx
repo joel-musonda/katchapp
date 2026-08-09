@@ -111,8 +111,6 @@ const Sidebar = ({ onAction }: SidebarProps) => {
     fetchSuggestions();
   }, [user, isHome]);
 
-  // ... handleFollow
-
   const handleFollow = async (targetUserId: string) => {
     if (!user) {
       toast.error("Please sign in to follow users");

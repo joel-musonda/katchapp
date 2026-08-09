@@ -36,7 +36,7 @@ const Index = () => {
     paginationRequestInFlightRef.current = isFetchingNextPage;
   }, [isFetchingNextPage]);
 
-  // Save scroll position
+  // Save scroll position[cite: 8]
   useEffect(() => {
     const handleScroll = () => {
       sessionStorage.setItem("genjutsu_feed_scroll", window.scrollY.toString());
@@ -45,7 +45,7 @@ const Index = () => {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  // Restore scroll position
+  // Restore scroll position[cite: 8]
   useEffect(() => {
     let timeout1: ReturnType<typeof setTimeout>;
     let timeout2: ReturnType<typeof setTimeout>;
@@ -54,7 +54,6 @@ const Index = () => {
       const savedY = sessionStorage.getItem("genjutsu_feed_scroll");
       if (savedY) {
         const y = parseInt(savedY, 10);
-        // Restore immediately, and then again after a short delay to account for layout shifts (e.g. images)
         window.scrollTo(0, y);
         timeout1 = setTimeout(() => window.scrollTo(0, y), 50);
         timeout2 = setTimeout(() => window.scrollTo(0, y), 200);
@@ -101,9 +100,9 @@ const Index = () => {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <Helmet>
-        <title>genjutsu — everything vanishes.</title>
-        <meta name="description" content="Share your code and thoughts on genjutsu. Everything disappears after 24 hours. No archives, no regrets." />
-        <meta property="og:title" content="genjutsu — 24 Hour Social Media" />
+        <title>katchapp</title>
+        <meta name="description" content="Share your code and thoughts on katchapp. Everything disappears after 24 hours. No archives, no regrets." />
+        <meta property="og:title" content="katchapp — 24 Hour Social Media" />
         <meta property="og:description" content="The social network where everything is temporary. 24 hours only. Share code & connect." />
         <meta property="og:image" content="/fav.jpg" />
       </Helmet>
@@ -114,15 +113,15 @@ const Index = () => {
             {user ? (
               <ComposePost onPost={createPost} />
             ) : (
-              <div className="gum-card p-6 mb-6 text-center">
-                <div className="w-12 h-12 rounded-[3px] overflow-hidden gum-border mx-auto mb-3">
-                  <img src="/fav.jpg" alt="genjutsu" className="w-full h-full object-cover" />
+              <div className="bg-black/[0.02] dark:bg-zinc-900/50 border border-black/[0.06] rounded-2xl p-6 mb-6 text-center shadow-xs">
+                <div className="w-12 h-12 rounded-xl overflow-hidden border border-black/[0.08] dark:border-white/10 mx-auto mb-3 flex items-center justify-center">
+                  <img src="/fav.jpg" alt="katchapp" className="w-full h-full object-cover" />
                 </div>
-                <h2 className="font-bold text-lg mb-1">{t("feed.joinConversation")}</h2>
-                <p className="text-sm text-muted-foreground mb-4">{t("feed.signInToShare")}</p>
+                <h2 className="font-bold text-lg mb-1 text-black dark:text-white">{t("feed.joinConversation")}</h2>
+                <p className="text-sm text-black/60 dark:text-white/60 mb-4">{t("feed.signInToShare")}</p>
                 <button
                   onClick={() => navigate("/auth")}
-                  className="gum-btn bg-primary text-primary-foreground text-sm"
+                  className="px-4 py-2 rounded-full bg-black text-white hover:bg-black/85 dark:bg-white dark:text-black dark:hover:bg-white/90 text-xs font-semibold transition-colors shadow-xs"
                 >
                   {t("feed.getStarted")}
                 </button>
@@ -134,9 +133,9 @@ const Index = () => {
                 {[1, 2, 3].map(i => <PostSkeleton key={i} />)}
               </div>
             ) : posts.length === 0 ? (
-              <div className="gum-card p-8 text-center border-dashed border-2">
-                <p className="text-muted-foreground text-sm font-medium">{t("feed.noIllusions")}</p>
-                <p className="text-xs text-muted-foreground mt-1">{t("feed.beTheFirst")}</p>
+              <div className="bg-black/[0.01] dark:bg-zinc-900/20 border border-dashed border-black/[0.08] dark:border-white/10 rounded-2xl p-8 text-center">
+                <p className="text-black/60 dark:text-white/60 text-sm font-medium">{t("feed.noIllusions")}</p>
+                <p className="text-xs text-black/40 dark:text-white/40 mt-1">{t("feed.beTheFirst")}</p>
               </div>
             ) : (
               <div className="space-y-6">
@@ -164,7 +163,7 @@ const Index = () => {
                 )}
 
                 <div ref={observerRef} className="h-10 flex justify-center items-center">
-                  {isFetchingNextPage && <FrogLoader className=" text-muted-foreground" size={20} />}
+                  {isFetchingNextPage && <FrogLoader className="text-black/50 dark:text-white/50" size={20} />}
                 </div>
               </div>
             )}
