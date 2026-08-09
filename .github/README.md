@@ -1,7 +1,7 @@
 <div align="center">
-  <img src="https://raw.githubusercontent.com/iamovi/genjutsu/refs/heads/main/public/logo.png" width="100" />
-  <h1>genjutsu 幻術</h1>
-  <p><i>a social network for developers where everything disappears after 24 hours</i></p>
+  
+  <h1>Katchapp</h1>
+  <p><i>a social network webapp</i></p>
 
 <p>
     <a href="https://genjutsu.xyz"><img src="https://img.shields.io/badge/live_app-genjutsu.xyz-9B78C2?style=flat-square" /></a>
@@ -13,7 +13,7 @@
 
 ---
 
-<img src="./main.png" width="400" />
+<img src="" width="400" />
 
 <br />
 
