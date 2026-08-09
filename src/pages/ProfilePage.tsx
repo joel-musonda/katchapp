@@ -1,0 +1,1045 @@
+import { useParams, useNavigate } from "react-router-dom";
+import { compressImage } from "@/lib/imageCompression";
+import { useEffect, useState, useRef, type ChangeEvent } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { PostWithProfile } from "@/hooks/usePosts";
+import Navbar from "@/components/Navbar";
+import PostCard from "@/components/PostCard";
+import Sidebar from "@/components/Sidebar";
+import { ArrowLeft, Calendar, ImageIcon, Send, Bookmark, Github, Twitter, Facebook, Globe, Play, Pause, Ban, Share, Upload, Trash2, MessageCircle } from "lucide-react";
+import { FrogLoader } from "@/components/ui/FrogLoader";
+import { Link } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
+import { toast } from "sonner";
+import { motion } from "framer-motion";
+import { Helmet } from "react-helmet-async";
+import EditProfileDialog from "@/components/EditProfileDialog";
+import FollowsList from "@/components/FollowsList";
+import { PostSkeleton } from "@/components/ui/skeleton";
+import { getNow } from "@/lib/utils";
+import { ImagePreviewDialog } from "@/components/ImagePreviewDialog";
+import DataSaverImage from "@/components/DataSaverImage";
+import { PageTransition } from "@/components/ui/PageTransition";
+import { useFollow } from "@/hooks/useFollow";
+import { usePostActions } from "@/hooks/usePostActions";
+import { linkify } from "@/lib/linkify";
+import { shareWithFallback } from "@/lib/nativeShare";
+
+interface ProfileData {
+    id: string;
+    user_id: string;
+    username: string;
+    display_name: string;
+    bio: string;
+    avatar_url: string;
+    banner_url: string;
+    social_links?: Record<string, string>;
+    fav_song?: any;
+    created_at: string;
+    banned_until?: string | null;
+    ban_permanent?: boolean;
+    ban_reason?: string | null;
+    ban_scopes?: string[] | null;
+}
+
+interface ProfileAlbumPhoto {
+    id: string;
+    user_id: string;
+    photo_url: string;
+    storage_path: string;
+    created_at: string;
+}
+
+const ProfilePage = () => {
+    const { username } = useParams<{ username: string }>();
+    const [profile, setProfile] = useState<ProfileData | null>(null);
+    const [posts, setPosts] = useState<PostWithProfile[]>([]);
+    const [bookmarks, setBookmarks] = useState<PostWithProfile[]>([]);
+    const [albumPhotos, setAlbumPhotos] = useState<ProfileAlbumPhoto[]>([]);
+    const [albumUploading, setAlbumUploading] = useState(false);
+    const [albumDeletingIds, setAlbumDeletingIds] = useState<Set<string>>(new Set());
+    const [isLiking, setIsLiking] = useState(false);
+    const audioRef = useRef<HTMLAudioElement | null>(null);
+    const playAttemptIdRef = useRef(0);
+    const [isPlaying, setIsPlaying] = useState(false);
+    const [progress, setProgress] = useState(0);
+
+    const disposeAudio = (resetUi = true) => {
+        if (!audioRef.current) return;
+
+        playAttemptIdRef.current += 1;
+        const audio = audioRef.current;
+        audio.onplay = null;
+        audio.onpause = null;
+        audio.ontimeupdate = null;
+        audio.onended = null;
+        audio.pause();
+        audio.src = "";
+        audio.load();
+        audioRef.current = null;
+
+        if (resetUi) {
+            setIsPlaying(false);
+            setProgress(0);
+        }
+    };
+
+    const ensureAudio = () => {
+        if (!profile?.fav_song?.previewUrl) return null;
+        if (audioRef.current) return audioRef.current;
+
+        const audio = new Audio(profile.fav_song.previewUrl);
+        audio.ontimeupdate = () => {
+            if (!Number.isFinite(audio.duration) || audio.duration <= 0) {
+                setProgress(0);
+                return;
+            }
+            setProgress((audio.currentTime / audio.duration) * 100);
+        };
+        audio.onplay = () => setIsPlaying(true);
+        audio.onpause = () => setIsPlaying(false);
+        audio.onended = () => {
+            setIsPlaying(false);
+            setProgress(0);
+        };
+
+        audioRef.current = audio;
+        return audio;
+    };
+
+    const togglePlay = async () => {
+        const audio = ensureAudio();
+        if (!audio) return;
+
+        const currentlyPlaying = !audio.paused && !audio.ended;
+        if (currentlyPlaying) {
+            playAttemptIdRef.current += 1;
+            audio.pause();
+        } else {
+            const attemptId = ++playAttemptIdRef.current;
+            // Reflect intent instantly so the button flips on first click.
+            setIsPlaying(true);
+            try {
+                await audio.play();
+            } catch (error: any) {
+                // Ignore stale rejections from previously replaced audio instances.
+                if (attemptId !== playAttemptIdRef.current) return;
+                // Browsers throw AbortError when play() is interrupted by unmount/src change.
+                if (error?.name !== "AbortError") {
+                    console.error("Audio playback failed:", error);
+                    toast.error("Couldn't play song preview.");
+                }
+                // Keep UI in sync with actual element state.
+                if (audio.paused || audio.ended) {
+                    setIsPlaying(false);
+                }
+            }
+        }
+    };
+
+    useEffect(() => {
+        disposeAudio();
+    }, [profile?.fav_song?.previewUrl]);
+
+    useEffect(() => {
+        return () => {
+            disposeAudio(false);
+        };
+    }, []);
+    const [loading, setLoading] = useState(true);
+    const [activeTab, setActiveTab] = useState<"posts" | "bookmarks">("posts");
+
+    const [followsModalOpen, setFollowsModalOpen] = useState(false);
+    const [followsModalType, setFollowsModalType] = useState<"followers" | "following">("followers");
+    const [isAvatarPreviewOpen, setIsAvatarPreviewOpen] = useState(false);
+    const [isAlbumPreviewOpen, setIsAlbumPreviewOpen] = useState(false);
+    const [selectedAlbumPhotoUrl, setSelectedAlbumPhotoUrl] = useState<string | null>(null);
+    const albumInputRef = useRef<HTMLInputElement>(null);
+    const { user } = useAuth();
+    const navigate = useNavigate();
+
+    // Use our new professional hook
+    const { isFollowing, toggleFollow, stats, refresh: refreshFollows } = useFollow(profile?.user_id);
+
+    const handleShareProfile = async () => {
+        if (!profile?.username) return;
+
+        const url = `${window.location.origin}/u/${profile.username}`;
+        const title = `${profile.display_name} (@${profile.username}) on genjutsu`;
+        const baseText = profile.bio?.trim() || `Check out @${profile.username} on genjutsu.`;
+        const text = baseText.length > 140 ? `${baseText.slice(0, 137)}...` : baseText;
+
+        const result = await shareWithFallback({ title, text, url });
+        if (result === "copied") {
+            toast.success("Profile link copied to clipboard!");
+        } else if (result === "failed") {
+            toast.error("Couldn't share this profile right now.");
+        }
+    };
+
+    const fetchData = async () => {
+        if (!username) return;
+
+        try {
+            setLoading(true);
+            setAlbumPhotos([]);
+
+            // 1. Fetch Profile
+            const { data: p, error: pError } = await supabase
+                .from("profiles")
+                .select("*")
+                .eq("username", username.toLowerCase())
+                .single();
+
+            if (pError) throw pError;
+            if (!p) throw new Error("Profile not found");
+            setProfile(p as unknown as ProfileData);
+
+            // 2. Fetch Persistent Profile Album
+            const { data: albumData, error: albumError } = await supabase
+                .from("profile_album_photos")
+                .select("id, user_id, photo_url, storage_path, created_at")
+                .eq("user_id", (p as any).user_id)
+                .order("created_at", { ascending: false });
+
+            if (albumError) {
+                console.error("Error fetching profile album:", albumError);
+                setAlbumPhotos([]);
+            } else {
+                setAlbumPhotos((albumData || []) as ProfileAlbumPhoto[]);
+            }
+
+            // 3. Fetch Posts
+            const { data: postsData } = await (supabase
+                .from("posts")
+                .select(`
+                  id, content, code, code_language, media_url, tags, created_at, edited_at, user_id, is_readme, views_count,
+                  profiles ( username, display_name, avatar_url )
+                `) as any)
+                .gt("created_at", new Date(getNow().getTime() - 24 * 60 * 60 * 1000).toISOString())
+                .eq("user_id", (p as any).user_id)
+                .order("created_at", { ascending: false });
+
+            if (postsData && p) {
+                const postIds = (postsData as any[]).map(post => post.id);
+
+                // Fetch counts and user status
+                const [{ data: likesData }, { data: commentsData }] = await Promise.all([
+                    supabase.from("likes").select("post_id").in("post_id", postIds),
+                    supabase.from("comments").select("post_id").in("post_id", postIds),
+                ]);
+
+                const likesCounts: Record<string, number> = {};
+                (likesData || []).forEach((l: any) => {
+                    likesCounts[l.post_id] = (likesCounts[l.post_id] || 0) + 1;
+                });
+
+                const commentsCounts: Record<string, number> = {};
+                (commentsData || []).forEach((c: any) => {
+                    commentsCounts[c.post_id] = (commentsCounts[c.post_id] || 0) + 1;
+                });
+
+                // Fetch user's status
+                let userLikes: Set<string> = new Set();
+                let userBookmarks: Set<string> = new Set();
+
+                if (user) {
+                    const [{ data: myLikes }, { data: myBookmarks }] = await Promise.all([
+                        supabase.from("likes").select("post_id").eq("user_id", user.id).in("post_id", postIds),
+                        supabase.from("bookmarks").select("post_id").eq("user_id", user.id).in("post_id", postIds),
+                    ]);
+                    userLikes = new Set((myLikes || []).map((l: any) => l.post_id));
+                    userBookmarks = new Set((myBookmarks || []).map((b: any) => b.post_id));
+                }
+
+                const enriched = postsData.map(post => ({
+                    ...post,
+                    profiles: post.profiles as any,
+                    views_count: Number((post as any).views_count || 0),
+                    likes_count: likesCounts[post.id] || 0,
+                    user_liked: userLikes.has(post.id),
+                    user_bookmarked: userBookmarks.has(post.id),
+                    comments_count: commentsCounts[post.id] || 0
+                } as PostWithProfile));
+                setPosts(enriched);
+            }
+
+        } catch (err: any) {
+            console.error("Error fetching profile:", err);
+            toast.error("Profile not found");
+            navigate("/");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchData();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [username, user?.id]);
+
+    // Fetch bookmarked posts (only for own profile)
+    const fetchBookmarks = async () => {
+        if (!user || !profile || user.id !== profile.user_id) return;
+
+        try {
+            const { data: bookmarkRows } = await supabase
+                .from("bookmarks")
+                .select("post_id")
+                .eq("user_id", user.id);
+
+            if (!bookmarkRows || bookmarkRows.length === 0) {
+                setBookmarks([]);
+                return;
+            }
+
+            const postIds = bookmarkRows.map((b: any) => b.post_id);
+
+            const { data: postsData } = await (supabase
+                .from("posts")
+                .select(`
+                    id, content, code, code_language, media_url, tags, created_at, edited_at, user_id, is_readme, views_count,
+                    profiles ( username, display_name, avatar_url )
+                `) as any)
+                .in("id", postIds)
+                .gt("created_at", new Date(getNow().getTime() - 24 * 60 * 60 * 1000).toISOString())
+                .order("created_at", { ascending: false });
+
+            if (!postsData || postsData.length === 0) {
+                setBookmarks([]);
+                return;
+            }
+
+            const activePostIds = (postsData as any[]).map(p => p.id);
+
+            const [{ data: likesData }, { data: commentsData }] = await Promise.all([
+                supabase.from("likes").select("post_id").in("post_id", activePostIds),
+                supabase.from("comments").select("post_id").in("post_id", activePostIds),
+            ]);
+
+            const likesCounts: Record<string, number> = {};
+            (likesData || []).forEach((l: any) => {
+                likesCounts[l.post_id] = (likesCounts[l.post_id] || 0) + 1;
+            });
+
+            const commentsCounts: Record<string, number> = {};
+            (commentsData || []).forEach((c: any) => {
+                commentsCounts[c.post_id] = (commentsCounts[c.post_id] || 0) + 1;
+            });
+
+            const [{ data: myLikes }] = await Promise.all([
+                supabase.from("likes").select("post_id").eq("user_id", user.id).in("post_id", activePostIds),
+            ]);
+            const userLikes = new Set((myLikes || []).map((l: any) => l.post_id));
+
+            const enriched = postsData.map(post => ({
+                ...post,
+                profiles: post.profiles as any,
+                views_count: Number((post as any).views_count || 0),
+                likes_count: likesCounts[post.id] || 0,
+                user_liked: userLikes.has(post.id),
+                user_bookmarked: true,
+                comments_count: commentsCounts[post.id] || 0
+            } as PostWithProfile));
+
+            setBookmarks(enriched);
+        } catch (err) {
+            console.error("Error fetching bookmarks:", err);
+        }
+    };
+
+    useEffect(() => {
+        if (activeTab === "bookmarks" && profile && user?.id === profile.user_id) {
+            fetchBookmarks();
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [activeTab, profile?.user_id, user?.id]);
+
+    const handleAlbumUpload = async (event: ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        event.target.value = "";
+
+        if (!file) return;
+        if (!user || !profile || user.id !== profile.user_id) {
+            toast.error("You can only edit your own album.");
+            return;
+        }
+        if (albumPhotos.length >= 5) {
+            toast.error("Album is full. Delete a photo before uploading a new one.");
+            return;
+        }
+        if (!file.type.startsWith("image/")) {
+            toast.error("Please upload an image file.");
+            return;
+        }
+        if (file.size > 2 * 1024 * 1024) {
+            toast.error("That image is too large. Please keep it under 2MB.");
+            return;
+        }
+
+        const compressedFile = await compressImage(file);
+        const fileExt = compressedFile.name.split(".").pop()?.toLowerCase() || "jpg";
+        const filePath = `${user.id}/${Date.now()}-${crypto.randomUUID()}.${fileExt}`;
+
+        setAlbumUploading(true);
+        try {
+            const { error: uploadError } = await supabase.storage
+                .from("profile-album")
+                .upload(filePath, compressedFile);
+            if (uploadError) throw uploadError;
+
+            const { data: publicData } = supabase.storage.from("profile-album").getPublicUrl(filePath);
+            const photoUrl = publicData.publicUrl;
+
+            const { data: insertedPhoto, error: insertError } = await supabase
+                .from("profile_album_photos")
+                .insert({
+                    user_id: user.id,
+                    photo_url: photoUrl,
+                    storage_path: filePath,
+                })
+                .select("id, user_id, photo_url, storage_path, created_at")
+                .single();
+
+            if (insertError) {
+                await supabase.storage.from("profile-album").remove([filePath]);
+                if ((insertError.message || "").includes("album_limit_exceeded")) {
+                    toast.error("Album is full. Delete a photo before uploading a new one.");
+                    return;
+                }
+                throw insertError;
+            }
+
+            setAlbumPhotos((prev) => [insertedPhoto as ProfileAlbumPhoto, ...prev].slice(0, 5));
+            toast.success("Photo added to your album.");
+        } catch (error) {
+            console.error("Error uploading album photo:", error);
+            toast.error("Couldn't upload photo right now. Please try again.");
+        } finally {
+            setAlbumUploading(false);
+        }
+    };
+
+    const handleAlbumDelete = async (photo: ProfileAlbumPhoto) => {
+        if (!user || !profile || user.id !== profile.user_id) {
+            toast.error("You can only edit your own album.");
+            return;
+        }
+        if (albumDeletingIds.has(photo.id)) return;
+
+        setAlbumDeletingIds((prev) => {
+            const next = new Set(prev);
+            next.add(photo.id);
+            return next;
+        });
+
+        try {
+            const { error: removeError } = await supabase.storage
+                .from("profile-album")
+                .remove([photo.storage_path]);
+            if (removeError) throw removeError;
+
+            const { error: deleteError } = await supabase
+                .from("profile_album_photos")
+                .delete()
+                .eq("id", photo.id)
+                .eq("user_id", user.id);
+            if (deleteError) throw deleteError;
+
+            setAlbumPhotos((prev) => prev.filter((item) => item.id !== photo.id));
+            toast.success("Photo deleted from album.");
+        } catch (error) {
+            console.error("Error deleting album photo:", error);
+            toast.error("Couldn't delete photo. Please try again.");
+        } finally {
+            setAlbumDeletingIds((prev) => {
+                const next = new Set(prev);
+                next.delete(photo.id);
+                return next;
+            });
+        }
+    };
+
+    const openAlbumPreview = (photoUrl: string) => {
+        setSelectedAlbumPhotoUrl(photoUrl);
+        setIsAlbumPreviewOpen(true);
+    };
+
+    const { toggleLike, toggleBookmark, deletePost } = usePostActions();
+
+    const handleLike = async (postId: string, currentlyLiked: boolean) => {
+        if (!user) {
+            toast.error("Please sign in to like posts");
+            return;
+        }
+
+        toggleLike(postId, currentlyLiked);
+        // Local state sync
+        setPosts((prev) =>
+            prev.map((p) => {
+                if (p.id === postId) {
+                    return {
+                        ...p,
+                        user_liked: !currentlyLiked,
+                        likes_count: currentlyLiked ? p.likes_count - 1 : p.likes_count + 1,
+                    };
+                }
+                return p;
+            })
+        );
+    };
+
+    const handleBookmark = async (postId: string, currentlyBookmarked: boolean) => {
+        if (!user) {
+            toast.error("Please sign in to bookmark posts");
+            return;
+        }
+
+        toggleBookmark(postId, currentlyBookmarked);
+        // Local state sync for posts
+        setPosts((prev) =>
+            prev.map((p) => {
+                if (p.id === postId) {
+                    return { ...p, user_bookmarked: !currentlyBookmarked };
+                }
+                return p;
+            })
+        );
+        // If unbookmarking, instantly remove from bookmarks list
+        if (currentlyBookmarked) {
+            setBookmarks((prev) => prev.filter((p) => p.id !== postId));
+        } else {
+            // If bookmarking, update the bookmark state in bookmarks list too
+            setBookmarks((prev) =>
+                prev.map((p) => p.id === postId ? { ...p, user_bookmarked: true } : p)
+            );
+        }
+    };
+
+    const handleDelete = async (postId: string) => {
+        if (!user) return;
+        try {
+            await deletePost(postId);
+            // Local state sync
+            setPosts((prev) => prev.filter((p) => p.id !== postId));
+        } catch (err) {
+            toast.error("Failed to delete post");
+        }
+    };
+
+    const handlePostEdited = (postId: string, updated: {
+        content: string;
+        code: string;
+        code_language: string | null;
+        media_url: string | null;
+        is_readme: boolean;
+        tags: string[];
+        edited_at: string | null;
+    }) => {
+        setPosts((prev) => prev.map((p) => p.id === postId ? { ...p, ...updated } : p));
+        setBookmarks((prev) => prev.map((p) => p.id === postId ? { ...p, ...updated } : p));
+    };
+
+    const initials = profile?.display_name?.substring(0, 2).toUpperCase() || "??";
+    const isOwnProfile = user?.id === profile?.user_id;
+    const hasActiveBan = !!(
+        isOwnProfile &&
+        profile &&
+        (profile.ban_permanent || (profile.banned_until && new Date(profile.banned_until) > getNow()))
+    );
+
+    const normalizedScopes = Array.from(
+        new Set(
+            (Array.isArray(profile?.ban_scopes) ? profile.ban_scopes : [])
+                .filter((scope): scope is string => typeof scope === "string")
+                .map((scope) => scope.toLowerCase())
+        )
+    );
+
+    const isGlobalRestriction = normalizedScopes.length === 0;
+    const blockedActions = isGlobalRestriction
+        ? [
+            "Create posts",
+            "Write comments",
+            "Like and unlike posts",
+            "Bookmark and unbookmark posts",
+            "Follow and unfollow users",
+            "Send whispers",
+        ]
+        : [
+            ...(normalizedScopes.includes("post") ? ["Create posts"] : []),
+            ...(normalizedScopes.includes("comment") ? ["Write comments"] : []),
+            ...(normalizedScopes.includes("social") ? ["Like/bookmark/follow interactions"] : []),
+            ...(normalizedScopes.includes("message") ? ["Send whispers"] : []),
+        ];
+    const blockedActionsDisplay = blockedActions.length > 0
+        ? blockedActions
+        : ["Restricted actions are configured by admin."];
+
+    return (
+        <div className="min-h-screen bg-background text-foreground">
+            {profile && (
+                <Helmet>
+                    <title>{profile.display_name} (u/{profile.username}) — genjutsu</title>
+                    <meta name="description" content={profile.bio || `Check out ${profile.display_name}'s profile on genjutsu.`} />
+                    <meta property="og:title" content={`${profile.display_name} (u/${profile.username}) — genjutsu`} />
+                    <meta property="og:description" content={profile.bio || `Check out ${profile.display_name}'s profile on genjutsu.`} />
+                    <meta property="og:image" content={profile.avatar_url || "/fav.jpg"} />
+                </Helmet>
+            )}
+            <Navbar />
+            <main className="max-w-6xl mx-auto px-4 py-8">
+                <PageTransition className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-8">
+                    <div className="space-y-4 min-w-0">
+                        {loading ? (
+                            <div className="space-y-6">
+                                <PostSkeleton />
+                                <PostSkeleton />
+                                <PostSkeleton />
+                            </div>
+                        ) : !profile ? (
+                            <div className="gum-card p-12 text-center text-muted-foreground">
+                                Profile not found.
+                            </div>
+                        ) : (
+                            <>
+                                <Link
+                                    to="/"
+                                    className="inline-flex items-center gap-2 px-3 py-1.5 gum-card bg-secondary text-xs font-bold hover:bg-primary hover:text-primary-foreground transition-colors w-fit"
+                                >
+                                    <ArrowLeft size={14} />
+                                    Back to Home
+                                </Link>
+                                <div className="gum-card overflow-hidden mb-8">
+                                    <div className="h-48 bg-secondary relative overflow-hidden flex items-center justify-center">
+                                        {profile.banner_url ? (
+                                            <img
+                                                src={profile.banner_url}
+                                                alt="Banner"
+                                                className="w-full h-full object-cover"
+                                            />
+                                        ) : (
+                                            <div className="flex flex-col items-center gap-2 opacity-20">
+                                                <ImageIcon size={48} />
+                                                <span className="text-xs font-bold uppercase tracking-widest">Genjutsu Illusion</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="px-6 pb-6 relative">
+                                        <div className="absolute -top-12 left-6">
+                                            <div
+                                                onClick={() => profile.avatar_url && setIsAvatarPreviewOpen(true)}
+                                                className={`w-24 h-24 rounded-[3px] gum-border bg-secondary flex items-center justify-center text-3xl font-bold gum-shadow overflow-hidden transition-opacity outline-none ${profile.avatar_url ? 'cursor-pointer hover:opacity-90' : 'cursor-default'}`}
+                                            >
+                                                {profile.avatar_url ? (
+                                                    <img src={profile.avatar_url} alt={profile.username} className="w-full h-full object-cover" loading="lazy" />
+                                                ) : initials}
+                                            </div>
+                                            {profile.avatar_url && (
+                                                <ImagePreviewDialog
+                                                    src={profile.avatar_url}
+                                                    isOpen={isAvatarPreviewOpen}
+                                                    onOpenChange={setIsAvatarPreviewOpen}
+                                                    alt={`${profile.display_name}'s avatar`}
+                                                />
+                                            )}
+                                        </div>
+
+                                        <div className="flex justify-end pt-4 pl-[7.5rem] sm:pl-0">
+                                            {isOwnProfile ? (
+                                                <div className="flex flex-wrap items-center justify-end gap-1.5 xs:gap-2">
+                                                    <button
+                                                        onClick={handleShareProfile}
+                                                        className="p-1.5 xs:p-2 gum-card bg-secondary text-muted-foreground hover:text-primary transition-colors"
+                                                        title="Share profile"
+                                                    >
+                                                        <Share size={18} />
+                                                    </button>
+                                                    <EditProfileDialog
+                                                        currentProfile={{
+                                                            display_name: profile.display_name,
+                                                            bio: profile.bio,
+                                                            avatar_url: profile.avatar_url,
+                                                            banner_url: profile.banner_url,
+                                                            social_links: profile.social_links,
+                                                            fav_song: profile.fav_song
+                                                        }}
+                                                        onUpdate={fetchData}
+                                                    />
+                                                </div>
+                                            ) : (
+                                                <div className="flex flex-wrap items-center justify-end gap-1.5 xs:gap-2">
+                                                    <button
+                                                        onClick={() => {
+                                                            if (!user) {
+                                                                toast.error("Please sign in to send messages");
+                                                                return;
+                                                            }
+                                                            navigate(`/whisper/${profile.username}`);
+                                                        }}
+                                                        className="p-1.5 xs:p-2 gum-card bg-secondary text-muted-foreground hover:text-primary transition-colors"
+                                                        title="Whisper"
+                                                    >
+                                                        <Send size={18} />
+                                                    </button>
+                                                    <button
+                                                        onClick={handleShareProfile}
+                                                        className="p-1.5 xs:p-2 gum-card bg-secondary text-muted-foreground hover:text-primary transition-colors"
+                                                        title="Share profile"
+                                                    >
+                                                        <Share size={18} />
+                                                    </button>
+                                                    <button
+                                                        onClick={toggleFollow}
+                                                        className={`gum-btn text-xs xs:text-sm px-4 xs:px-6 py-2 xs:py-2.5 whitespace-nowrap ${isFollowing ? 'bg-secondary' : 'bg-primary text-primary-foreground'}`}
+                                                    >
+                                                        {isFollowing ? 'Following' : 'Follow'}
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {hasActiveBan && (
+                                            <div className="mt-8 mb-4">
+                                                <div className="bg-destructive/10 border-2 border-destructive/20 rounded-[3px] p-4 flex items-start gap-3">
+                                                    <div className="bg-destructive text-destructive-foreground p-1.5 rounded-sm shrink-0">
+                                                        <Ban size={18} />
+                                                    </div>
+                                                    <div>
+                                                        <h3 className="text-sm font-bold text-destructive">Account Restricted</h3>
+                                                        {profile.ban_permanent ? (
+                                                            <p className="text-xs text-destructive/80 mt-1">
+                                                                Ban type: <strong>Permanent</strong>
+                                                            </p>
+                                                        ) : (
+                                                            <p className="text-xs text-destructive/80 mt-1">
+                                                                Ban type: <strong>Temporary</strong> until <strong>{new Date(profile.banned_until as string).toLocaleString()}</strong>.
+                                                            </p>
+                                                        )}
+                                                        {profile.ban_reason && (
+                                                            <p className="text-xs text-destructive/80 mt-1">
+                                                                Reason: <strong>{profile.ban_reason}</strong>
+                                                            </p>
+                                                        )}
+                                                        <div className="mt-2">
+                                                            <p className="text-xs text-destructive/80">
+                                                                You currently cannot:
+                                                            </p>
+                                                            <ul className="mt-1 text-xs text-destructive/80 list-disc ml-4 space-y-1">
+                                                                {blockedActionsDisplay.map((action) => (
+                                                                    <li key={action}>{action}</li>
+                                                                ))}
+                                                            </ul>
+                                                        </div>
+                                                        <p className="text-[11px] text-destructive/70 mt-2">
+                                                            Scope mode: <strong>{isGlobalRestriction ? "Global restriction" : "Scoped restriction"}</strong>
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        <div className={`min-w-0 max-w-full overflow-hidden ${!hasActiveBan ? 'mt-8' : ''}`}>
+                                            <h1 className="text-2xl font-bold tracking-tight truncate">
+                                                {profile.display_name}
+                                            </h1>
+                                            <p className="text-muted-foreground truncate">u/{profile.username}</p>
+                                        </div>
+
+                                        <p className="mt-4 text-sm leading-relaxed max-w-xl whitespace-pre-wrap">
+                                            {profile.bio ? linkify(profile.bio) : "No bio yet."}
+                                        </p>
+
+                                        {profile.social_links && Object.values(profile.social_links).some(link => link) && (
+                                            <div className="flex flex-wrap gap-3 mt-4">
+                                                {Object.entries(profile.social_links).map(([platform, link]) => {
+                                                    if (!link) return null;
+
+                                                    const formattedLink = link.startsWith('http') ? link : `https://${link}`;
+                                                    const icons: Record<string, any> = {
+                                                        github: Github,
+                                                        twitter: Twitter,
+                                                        facebook: Facebook,
+                                                        website: Globe
+                                                    };
+                                                    const Icon = icons[platform] || Globe;
+
+                                                    return (
+                                                        <a
+                                                            key={platform}
+                                                            href={formattedLink}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="p-2 gum-card bg-secondary/50 text-muted-foreground hover:text-primary hover:bg-secondary transition-all hover:scale-110 active:scale-95"
+                                                            title={platform.charAt(0).toUpperCase() + platform.slice(1)}
+                                                        >
+                                                            <Icon size={18} />
+                                                        </a>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+
+                                        {profile.fav_song && (
+                                            <div className="mt-6">
+                                                <div className="inline-flex items-center gap-3 px-5 py-2.5 bg-background border-2 border-foreground rounded-[3px] shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] animate-in fade-in slide-in-from-top-4 duration-500">
+                                                    <div className="relative group shrink-0">
+                                                        <DataSaverImage
+                                                            src={profile.fav_song.artworkUrl100}
+                                                            className="w-10 h-10 rounded-[3px] object-cover border-2 border-foreground animate-spin-slow"
+                                                            style={{ animationPlayState: isPlaying ? 'running' : 'paused' }}
+                                                            alt=""
+                                                        />
+                                                        <button
+                                                            onClick={togglePlay}
+                                                            className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-[3px] opacity-0 group-hover:opacity-100 transition-opacity text-white"
+                                                        >
+                                                            {isPlaying ? <Pause size={14} fill="currentColor" /> : <Play size={14} fill="currentColor" />}
+                                                        </button>
+                                                    </div>
+                                                    <div className="flex flex-col min-w-0">
+                                                        <div className="flex gap-1 items-end h-3 mb-1.5">
+                                                            {[1, 2, 3, 4, 5].map(i => (
+                                                                <div
+                                                                    key={i}
+                                                                    className={`w-1 bg-foreground rounded-full transition-all duration-300 ${isPlaying ? 'animate-music-bar' : 'h-1'}`}
+                                                                    style={{ animationDelay: `${i * 0.15}s` }}
+                                                                />
+                                                            ))}
+                                                        </div>
+                                                        <p className="text-xs font-black truncate max-w-[250px] leading-tight flex items-center gap-1.5">
+                                                            {profile.fav_song.trackName}
+                                                            <span className="w-1 h-1 rounded-full bg-foreground/20" />
+                                                            <span className="opacity-60 font-medium">{profile.fav_song.artistName}</span>
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        <div className="flex flex-wrap gap-4 mt-6 text-sm text-muted-foreground">
+                                            <div className="flex items-center gap-1.5">
+                                                <Calendar size={16} />
+                                                <span>Joined {new Date(profile.created_at).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}</span>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex gap-6 mt-6">
+                                            <button
+                                                onClick={() => {
+                                                    setFollowsModalType("following");
+                                                    setFollowsModalOpen(true);
+                                                }}
+                                                className="hover:underline flex items-center gap-1.5"
+                                            >
+                                                <span className="font-bold text-foreground">{stats.following}</span>
+                                                <span className="text-muted-foreground text-sm">Following</span>
+                                            </button>
+                                            <button
+                                                onClick={() => {
+                                                    setFollowsModalType("followers");
+                                                    setFollowsModalOpen(true);
+                                                }}
+                                                className="hover:underline flex items-center gap-1.5"
+                                            >
+                                                <span className="font-bold text-foreground">{stats.followers}</span>
+                                                <span className="text-muted-foreground text-sm">Followers</span>
+                                            </button>
+                                        </div>
+
+                                        {/* Ask Me Anything link */}
+                                        <div className="mt-6">
+                                            <button
+                                                onClick={() => navigate(`/qna/${profile.username}`)}
+                                                className="gum-btn bg-secondary text-sm flex items-center gap-2 hover:bg-primary hover:text-primary-foreground transition-colors"
+                                            >
+                                                <MessageCircle size={16} />
+                                                Ask me anything
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="gum-card p-5 sm:p-6 mb-8">
+                                    <div className="flex flex-wrap items-center justify-between gap-3">
+                                        <div>
+                                            <h2 className="text-lg font-bold tracking-tight">Album</h2>
+                                            <p className="text-xs text-muted-foreground">
+                                                Persistent profile photos. Nothing expires automatically.
+                                            </p>
+                                        </div>
+                                        <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+                                            {albumPhotos.length}/5
+                                        </span>
+                                    </div>
+
+                                    {isOwnProfile && (
+                                        <div className="mt-4">
+                                            <input
+                                                ref={albumInputRef}
+                                                type="file"
+                                                accept="image/*"
+                                                className="hidden"
+                                                onChange={handleAlbumUpload}
+                                            />
+                                            <button
+                                                onClick={() => albumInputRef.current?.click()}
+                                                disabled={albumUploading || albumPhotos.length >= 5}
+                                                className="gum-btn flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                                            >
+                                                {albumUploading ? <FrogLoader className="" size={16} /> : <Upload size={16} />}
+                                                {albumPhotos.length >= 5 ? "Album Full (5/5)" : "Upload Photo"}
+                                            </button>
+                                        </div>
+                                    )}
+
+                                    {albumPhotos.length === 0 ? (
+                                        <div className="mt-4 border-2 border-dashed border-border rounded-[3px] p-6 text-center text-sm text-muted-foreground">
+                                            No album photos yet.
+                                        </div>
+                                    ) : (
+                                        <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                                            {albumPhotos.map((photo) => {
+                                                const isDeleting = albumDeletingIds.has(photo.id);
+                                                return (
+                                                    <div key={photo.id} className="relative group">
+                                                        <button
+                                                            onClick={() => openAlbumPreview(photo.photo_url)}
+                                                            className="w-full aspect-square rounded-[3px] overflow-hidden gum-border bg-secondary hover:opacity-90 transition-opacity"
+                                                            title="Open photo"
+                                                        >
+                                                            <DataSaverImage
+                                                                src={photo.photo_url}
+                                                                alt={`${profile.display_name} album photo`}
+                                                                className="w-full h-full object-cover"
+                                                            />
+                                                        </button>
+                                                        {isOwnProfile && (
+                                                            <button
+                                                                onClick={() => handleAlbumDelete(photo)}
+                                                                disabled={isDeleting}
+                                                                className="absolute top-2 right-2 p-1.5 rounded-[3px] bg-black/60 text-white hover:bg-black/80 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                                                                title="Delete photo"
+                                                            >
+                                                                {isDeleting ? <FrogLoader className="" size={14} /> : <Trash2 size={14} />}
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="space-y-6">
+                                    {isOwnProfile ? (
+                                        <div className="flex gap-2 border-b border-border pb-px mb-4">
+                                            {(["posts", "bookmarks"] as const).map((tab) => (
+                                                <button
+                                                    key={tab}
+                                                    onClick={() => setActiveTab(tab)}
+                                                    className={`px-6 py-2.5 text-sm font-bold capitalize transition-all relative flex items-center gap-2 ${activeTab === tab ? "text-primary" : "text-muted-foreground hover:text-foreground"}`}
+                                                >
+                                                    {tab === "bookmarks" && <Bookmark size={14} />}
+                                                    {tab}
+                                                    {activeTab === tab && (
+                                                        <motion.div
+                                                            layoutId="profileTab"
+                                                            className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary"
+                                                        />
+                                                    )}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <h2 className="font-bold text-lg px-2">Posts</h2>
+                                    )}
+
+                                    {activeTab === "posts" ? (
+                                        posts.length === 0 ? (
+                                            <div className="gum-card p-12 text-center text-muted-foreground text-sm">
+                                                No posts yet.
+                                            </div>
+                                        ) : (
+                                            posts.map((post, index) => (
+                                                <div
+                                                    key={post.id}
+                                                    className="animate-fade-in"
+                                                    style={{ animationDelay: `${(index % 10) * 50}ms`, animationFillMode: "both" }}
+                                                >
+                                                    <PostCard
+                                                        post={post}
+                                                        onLike={handleLike}
+                                                        onBookmark={handleBookmark}
+                                                        onDelete={handleDelete}
+                                                        onPostEdited={handlePostEdited}
+                                                    />
+                                                </div>
+                                            ))
+                                        )
+                                    ) : (
+                                        bookmarks.length === 0 ? (
+                                            <div className="gum-card p-12 text-center flex flex-col items-center gap-4 bg-secondary/20 border-dashed">
+                                                <div className="w-16 h-16 rounded-[3px] bg-secondary flex items-center justify-center border-2 border-primary/20">
+                                                    <Bookmark size={32} className="text-primary/50" />
+                                                </div>
+                                                <div>
+                                                    <h3 className="font-bold text-lg">No bookmarks yet</h3>
+                                                    <p className="text-sm text-muted-foreground mt-1">
+                                                        Save posts to find them later. Bookmarked posts still vanish after 24 hours.
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            bookmarks.map((post, index) => (
+                                                <div
+                                                    key={post.id}
+                                                    className="animate-fade-in"
+                                                    style={{ animationDelay: `${(index % 10) * 50}ms`, animationFillMode: "both" }}
+                                                >
+                                                    <PostCard
+                                                        post={post}
+                                                        onLike={handleLike}
+                                                        onBookmark={handleBookmark}
+                                                        onDelete={handleDelete}
+                                                        onPostEdited={handlePostEdited}
+                                                    />
+                                                </div>
+                                            ))
+                                        )
+                                    )}
+                                </div>
+                            </>
+                        )}
+                    </div>
+
+                    <div className="hidden lg:block lg:sticky lg:top-20 self-start max-h-[calc(100vh-6rem)] overflow-y-auto pr-2 custom-scrollbar">
+                        <Sidebar />
+                    </div>
+                </PageTransition>
+            </main>
+
+            <ImagePreviewDialog
+                src={selectedAlbumPhotoUrl}
+                isOpen={isAlbumPreviewOpen}
+                onOpenChange={(open) => {
+                    setIsAlbumPreviewOpen(open);
+                    if (!open) setSelectedAlbumPhotoUrl(null);
+                }}
+                alt={profile ? `${profile.display_name}'s album photo` : "Album photo"}
+            />
+
+            {profile && (
+                <FollowsList
+                    userId={profile.user_id}
+                    type={followsModalType}
+                    isOpen={followsModalOpen}
+                    onOpenChange={setFollowsModalOpen}
+                    onAction={refreshFollows}
+                />
+            )}
+        </div>
+    );
+};
+
+export default ProfilePage;

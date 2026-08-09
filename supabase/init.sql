@@ -1,0 +1,2278 @@
+-- =============================================================================
+-- genjutsu — init.sql
+-- Consolidated database setup for a fresh Supabase project.
+-- Run this ONCE in the Supabase SQL Editor to set up the entire database.
+--
+-- AFTER running this, you must also:
+--   1. Set your .env file with VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY
+--   2. Store your service_role key in Vault (for auto storage cleanup):
+--      SELECT vault.create_secret('supabase_service_role_key', 'YOUR_KEY');
+-- =============================================================================
+
+
+-- =============================================================================
+-- EXTENSIONS
+-- =============================================================================
+
+CREATE EXTENSION IF NOT EXISTS pg_cron;
+CREATE EXTENSION IF NOT EXISTS pg_net WITH SCHEMA extensions;
+
+
+-- =============================================================================
+-- TABLES
+-- =============================================================================
+
+-- Admin Users (Moderation System)
+CREATE TABLE public.admin_users (
+  user_id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  created_by UUID REFERENCES auth.users(id)
+);
+
+-- Admin Verification Helper
+CREATE OR REPLACE FUNCTION public.is_admin()
+RETURNS BOOLEAN AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1
+    FROM public.admin_users au
+    WHERE au.user_id = auth.uid()
+  );
+END;
+$$ LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public;
+
+-- Profiles
+CREATE TABLE public.profiles (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL UNIQUE,
+  username TEXT NOT NULL UNIQUE,
+  display_name TEXT NOT NULL,
+  bio TEXT DEFAULT '',
+  avatar_url TEXT DEFAULT '',
+  banner_url TEXT DEFAULT '',
+  social_links JSONB DEFAULT '{}'::jsonb,
+  fav_song JSONB DEFAULT NULL,
+  banned_until TIMESTAMPTZ,
+  ban_permanent BOOLEAN NOT NULL DEFAULT false,
+  ban_reason TEXT,
+  ban_scopes TEXT[] DEFAULT '{}'::text[],
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+  updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+  whisper_last_seen_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Helper: Check if a given action is allowed for the current user (Fine-grained bans)
+-- MOVED HERE (originally in the "SERVER-SIDE RATE-LIMITED & MODERATION FUNCTIONS"
+-- section near the bottom of the file) because several RLS policies below
+-- reference it, and Postgres requires referenced functions to already exist
+-- at CREATE POLICY time. Running the original file top-to-bottom fails with:
+--   ERROR: 42883: function public.is_action_allowed(unknown) does not exist
+CREATE OR REPLACE FUNCTION public.is_action_allowed(p_action TEXT)
+RETURNS BOOLEAN AS $$
+DECLARE
+  v_banned_until TIMESTAMPTZ;
+  v_scopes TEXT[];
+  v_ban_permanent BOOLEAN;
+BEGIN
+  SELECT banned_until, ban_scopes, ban_permanent
+  INTO v_banned_until, v_scopes, v_ban_permanent
+  FROM public.profiles
+  WHERE user_id = auth.uid();
+
+  -- If ban is not permanent, then no active/expired timestamp means allowed.
+  IF NOT COALESCE(v_ban_permanent, false)
+     AND (v_banned_until IS NULL OR v_banned_until <= now()) THEN
+    RETURN true;
+  END IF;
+
+  -- Banned and no specific scopes set → block all actions
+  IF v_scopes IS NULL OR array_length(v_scopes, 1) IS NULL THEN
+    RETURN false;
+  END IF;
+
+  -- If this action is in the blocked scopes → disallow
+  IF p_action = ANY (v_scopes) THEN
+    RETURN false;
+  END IF;
+
+  RETURN true;
+END;
+$$ LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public;
+
+-- Profile Album Photos (persistent profile gallery)
+CREATE TABLE public.profile_album_photos (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES public.profiles(user_id) ON DELETE CASCADE NOT NULL,
+  photo_url TEXT NOT NULL,
+  storage_path TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_profile_album_photos_user_created_at
+  ON public.profile_album_photos (user_id, created_at DESC);
+
+-- Posts
+CREATE TABLE public.posts (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES public.profiles(user_id) ON DELETE CASCADE NOT NULL,
+  content TEXT NOT NULL,
+  code TEXT DEFAULT '',
+  media_url TEXT DEFAULT '',
+  tags TEXT[] DEFAULT '{}',
+  is_readme BOOLEAN DEFAULT false,
+  code_language TEXT DEFAULT NULL,
+  views_count BIGINT NOT NULL DEFAULT 0,
+  edited_at TIMESTAMPTZ,
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+  updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_posts_created_at_desc
+  ON public.posts (created_at DESC);
+
+-- Post Views (dedupe per viewer/post)
+CREATE TABLE public.post_views (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  post_id UUID REFERENCES public.posts(id) ON DELETE CASCADE NOT NULL,
+  viewer_key TEXT NOT NULL,
+  viewer_user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  trigger TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(post_id, viewer_key)
+);
+
+-- Likes
+CREATE TABLE public.likes (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  post_id UUID REFERENCES public.posts(id) ON DELETE CASCADE NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+  UNIQUE(user_id, post_id)
+);
+
+CREATE INDEX idx_likes_post_created_at
+  ON public.likes (post_id, created_at DESC);
+
+-- Bookmarks
+CREATE TABLE public.bookmarks (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  post_id UUID REFERENCES public.posts(id) ON DELETE CASCADE NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+  UNIQUE(user_id, post_id)
+);
+
+-- Follows
+CREATE TABLE public.follows (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  follower_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  following_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+  UNIQUE(follower_id, following_id)
+);
+
+-- Comments
+CREATE TABLE public.comments (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  post_id UUID REFERENCES public.posts(id) ON DELETE CASCADE NOT NULL,
+  user_id UUID REFERENCES public.profiles(user_id) ON DELETE CASCADE NOT NULL,
+  content TEXT NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+  updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_comments_post_id
+  ON public.comments (post_id);
+
+-- Messages (Whispers)
+CREATE TABLE public.messages (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  sender_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  receiver_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  content TEXT NOT NULL,
+  media_url TEXT,
+  is_read BOOLEAN DEFAULT false,
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+  CONSTRAINT messages_content_or_media_check
+    CHECK (nullif(btrim(content), '') IS NOT NULL OR media_url IS NOT NULL)
+);
+
+-- Community Messages (Public Group Chat)
+CREATE TABLE public.community_messages (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  content TEXT NOT NULL CHECK (char_length(content) BETWEEN 1 AND 5000),
+  is_ai_reply BOOLEAN DEFAULT FALSE NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_community_messages_created 
+  ON public.community_messages (created_at DESC);
+
+-- QnA Questions (Anonymous questions submitted to a user's profile)
+CREATE TABLE public.qna_questions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  target_user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  question_text TEXT NOT NULL CHECK (char_length(question_text) BETWEEN 1 AND 500),
+  is_answered BOOLEAN DEFAULT FALSE NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_qna_questions_target_user
+  ON public.qna_questions (target_user_id, created_at DESC);
+
+-- User Action Log (for rate limiting cooldowns)
+CREATE TABLE public.user_action_log (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  action_type TEXT NOT NULL,
+  idempotency_key TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE UNIQUE INDEX idx_user_action_idempotency
+  ON public.user_action_log (user_id, idempotency_key)
+  WHERE idempotency_key IS NOT NULL;
+
+CREATE INDEX idx_user_action_lookup
+  ON public.user_action_log (user_id, action_type, created_at DESC);
+
+-- Notifications
+CREATE TABLE public.notifications (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  actor_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  type TEXT NOT NULL CHECK (type IN ('like', 'unlike', 'comment', 'uncomment', 'follow', 'unfollow', 'mention', 'game_submission', 'game_approved', 'game_rejected', 'game_like', 'game_comment', 'qna_question')),
+  post_id UUID REFERENCES public.posts(id) ON DELETE CASCADE,
+  comment_id UUID REFERENCES public.comments(id) ON DELETE CASCADE,
+  game_id UUID,
+  is_read BOOLEAN DEFAULT false,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Game House
+CREATE TABLE public.game_house (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  title TEXT NOT NULL,
+  description TEXT NOT NULL,
+  html_storage_path TEXT NOT NULL,
+  submitted_by UUID NOT NULL REFERENCES public.profiles(user_id) ON DELETE CASCADE,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
+  play_count INTEGER NOT NULL DEFAULT 0,
+  draft_data JSONB DEFAULT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE public.game_house_likes (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  game_id UUID NOT NULL REFERENCES public.game_house(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (user_id, game_id)
+);
+
+CREATE TABLE public.game_house_comments (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  game_id UUID NOT NULL REFERENCES public.game_house(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES public.profiles(user_id) ON DELETE CASCADE,
+  content TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+ALTER TABLE public.notifications
+  ADD CONSTRAINT notifications_game_id_fkey
+  FOREIGN KEY (game_id) REFERENCES public.game_house(id) ON DELETE CASCADE;
+
+CREATE INDEX idx_notifications_user ON public.notifications (user_id, created_at DESC);
+CREATE INDEX idx_notifications_unread ON public.notifications (user_id, is_read) WHERE is_read = false;
+CREATE INDEX idx_notifications_game_id ON public.notifications (game_id);
+CREATE INDEX idx_post_views_post_id ON public.post_views (post_id);
+CREATE INDEX idx_post_views_viewer_user_id ON public.post_views (viewer_user_id);
+CREATE INDEX idx_game_house_likes_game_id ON public.game_house_likes (game_id);
+CREATE INDEX idx_game_house_comments_game_id ON public.game_house_comments (game_id, created_at ASC);
+
+
+-- =============================================================================
+-- ROW LEVEL SECURITY
+-- =============================================================================
+
+ALTER TABLE public.admin_users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.profile_album_photos ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.posts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.post_views ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.likes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.bookmarks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.follows ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.comments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.community_messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.user_action_log ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.game_house ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.game_house_likes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.game_house_comments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.qna_questions ENABLE ROW LEVEL SECURITY;
+
+-- Admin Users
+CREATE POLICY "Users can view their own admin status"
+  ON public.admin_users FOR SELECT USING ((select auth.uid()) = user_id);
+
+-- Profiles
+CREATE POLICY "Profiles are viewable by everyone"
+  ON public.profiles FOR SELECT USING (true);
+CREATE POLICY "Users can insert their own profile"
+  ON public.profiles FOR INSERT WITH CHECK ((select auth.uid()) = user_id);
+CREATE POLICY "Users can update their own profile"
+  ON public.profiles FOR UPDATE USING ((select auth.uid()) = user_id);
+
+-- Profile album photos
+CREATE POLICY "Profile album photos are viewable by everyone"
+  ON public.profile_album_photos FOR SELECT USING (true);
+CREATE POLICY "Users can insert their own album photos"
+  ON public.profile_album_photos FOR INSERT WITH CHECK ((select auth.uid()) = user_id);
+CREATE POLICY "Users can delete their own album photos"
+  ON public.profile_album_photos FOR DELETE USING ((select auth.uid()) = user_id);
+
+-- Posts (INSERT blocked — must use create_post() function)
+CREATE POLICY "Posts are viewable by everyone"
+  ON public.posts FOR SELECT USING (true);
+CREATE POLICY "Users can update their own posts"
+  ON public.posts FOR UPDATE USING ((select auth.uid()) = user_id AND public.is_action_allowed('post'));
+CREATE POLICY "Users or admins can delete posts"
+  ON public.posts FOR DELETE USING (((select auth.uid()) = user_id) OR public.is_admin());
+
+-- Likes
+CREATE POLICY "Likes are viewable by everyone"
+  ON public.likes FOR SELECT USING (true);
+CREATE POLICY "Users can like posts"
+  ON public.likes FOR INSERT WITH CHECK ((select auth.uid()) = user_id AND public.is_action_allowed('social'));
+CREATE POLICY "Users can unlike posts"
+  ON public.likes FOR DELETE USING ((select auth.uid()) = user_id AND public.is_action_allowed('social'));
+
+-- Bookmarks
+CREATE POLICY "Users can view their own bookmarks"
+  ON public.bookmarks FOR SELECT USING ((select auth.uid()) = user_id);
+CREATE POLICY "Users can bookmark posts"
+  ON public.bookmarks FOR INSERT WITH CHECK ((select auth.uid()) = user_id AND public.is_action_allowed('social'));
+CREATE POLICY "Users can remove bookmarks"
+  ON public.bookmarks FOR DELETE USING ((select auth.uid()) = user_id AND public.is_action_allowed('social'));
+
+-- Follows
+CREATE POLICY "Follows are viewable by everyone"
+  ON public.follows FOR SELECT USING (true);
+CREATE POLICY "Users can follow"
+  ON public.follows FOR INSERT WITH CHECK ((select auth.uid()) = follower_id AND public.is_action_allowed('social'));
+CREATE POLICY "Users can unfollow"
+  ON public.follows FOR DELETE USING ((select auth.uid()) = follower_id AND public.is_action_allowed('social'));
+
+-- Comments (INSERT blocked — must use create_comment() function)
+CREATE POLICY "Comments are viewable by everyone"
+  ON public.comments FOR SELECT USING (true);
+CREATE POLICY "Users can update their own comments"
+  ON public.comments FOR UPDATE USING ((select auth.uid()) = user_id);
+CREATE POLICY "Users or admins can delete comments"
+  ON public.comments FOR DELETE USING (((select auth.uid()) = user_id) OR public.is_admin());
+
+-- User Action Log
+CREATE POLICY "Users can view own action log"
+  ON public.user_action_log FOR SELECT USING ((select auth.uid()) = user_id);
+
+-- Messages
+CREATE POLICY "Users can view their own messages"
+  ON public.messages FOR SELECT USING ((select auth.uid()) = sender_id OR (select auth.uid()) = receiver_id);
+CREATE POLICY "Users can send messages"
+  ON public.messages FOR INSERT WITH CHECK ((select auth.uid()) = sender_id AND public.is_action_allowed('message'));
+CREATE POLICY "Receivers can mark messages as read"
+  ON public.messages FOR UPDATE USING ((select auth.uid()) = receiver_id);
+
+-- Community Messages
+CREATE POLICY "Authenticated users can read community messages"
+  ON public.community_messages FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Authenticated users can send community messages"
+  ON public.community_messages FOR INSERT TO authenticated WITH CHECK ((select auth.uid()) = user_id);
+CREATE POLICY "Users can delete own community messages"
+  ON public.community_messages FOR DELETE TO authenticated USING ((select auth.uid()) = user_id);
+
+-- QnA Questions
+CREATE POLICY "Anyone can submit a question"
+  ON public.qna_questions FOR INSERT
+  WITH CHECK ((select auth.role()) IN ('anon', 'authenticated'));
+CREATE POLICY "Users can view their own questions"
+  ON public.qna_questions FOR SELECT
+  USING ((select auth.uid()) = target_user_id);
+CREATE POLICY "Users can update their own questions"
+  ON public.qna_questions FOR UPDATE
+  USING ((select auth.uid()) = target_user_id);
+CREATE POLICY "Users can delete their own questions"
+  ON public.qna_questions FOR DELETE
+  USING ((select auth.uid()) = target_user_id);
+
+-- Notifications
+CREATE POLICY "Users can view own notifications"
+  ON public.notifications FOR SELECT USING ((select auth.uid()) = user_id);
+CREATE POLICY "Users can update own notifications"
+  ON public.notifications FOR UPDATE USING ((select auth.uid()) = user_id);
+
+-- Game House Policies
+CREATE POLICY "Anyone can view approved, own, or all if admin"
+  ON public.game_house FOR SELECT USING ((status = 'approved') OR ((select auth.uid()) = submitted_by) OR public.is_admin());
+CREATE POLICY "Authenticated users can submit games"
+  ON public.game_house FOR INSERT WITH CHECK ((select auth.uid()) = submitted_by AND status = 'pending');
+CREATE POLICY "Users or admins can update games"
+  ON public.game_house FOR UPDATE USING (((select auth.uid()) = submitted_by) OR public.is_admin());
+CREATE POLICY "Users or admins can delete games"
+  ON public.game_house FOR DELETE USING (((select auth.uid()) = submitted_by) OR public.is_admin());
+
+-- Game House Likes
+CREATE POLICY "Game likes are visible when game is visible"
+  ON public.game_house_likes FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.game_house g
+      WHERE g.id = game_id
+        AND (
+          g.status = 'approved'
+          OR g.submitted_by = (select auth.uid())
+          OR public.is_admin()
+        )
+    )
+  );
+CREATE POLICY "Users can like approved games"
+  ON public.game_house_likes FOR INSERT
+  WITH CHECK (
+    (select auth.uid()) = user_id
+    AND public.is_action_allowed('social')
+    AND EXISTS (
+      SELECT 1 FROM public.game_house g
+      WHERE g.id = game_id
+        AND g.status = 'approved'
+    )
+  );
+CREATE POLICY "Users can unlike their own game likes"
+  ON public.game_house_likes FOR DELETE
+  USING (
+    (select auth.uid()) = user_id
+    AND public.is_action_allowed('social')
+  );
+
+-- Game House Comments (INSERT blocked — must use create_game_comment() function)
+CREATE POLICY "Game comments are visible when game is visible"
+  ON public.game_house_comments FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.game_house g
+      WHERE g.id = game_id
+        AND (
+          g.status = 'approved'
+          OR g.submitted_by = (select auth.uid())
+          OR public.is_admin()
+        )
+    )
+  );
+CREATE POLICY "Users can update own game comments"
+  ON public.game_house_comments FOR UPDATE
+  USING ((select auth.uid()) = user_id);
+CREATE POLICY "Users or admins can delete game comments"
+  ON public.game_house_comments FOR DELETE
+  USING (((select auth.uid()) = user_id) OR public.is_admin());
+
+
+-- =============================================================================
+-- TRIGGERS
+-- =============================================================================
+
+-- Updated at trigger function
+CREATE OR REPLACE FUNCTION public.update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SET search_path = public;
+
+CREATE TRIGGER update_profiles_updated_at
+  BEFORE UPDATE ON public.profiles
+  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+
+CREATE TRIGGER update_posts_updated_at
+  BEFORE UPDATE ON public.posts
+  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+
+CREATE TRIGGER update_comments_updated_at
+  BEFORE UPDATE ON public.comments
+  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+
+CREATE TRIGGER update_game_house_comments_updated_at
+  BEFORE UPDATE ON public.game_house_comments
+  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+
+-- QnA Notifications
+CREATE OR REPLACE FUNCTION public.handle_new_qna_question()
+RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO public.notifications (user_id, actor_id, type)
+  VALUES (NEW.target_user_id, NEW.target_user_id, 'qna_question');
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+CREATE TRIGGER on_qna_question_created
+  AFTER INSERT ON public.qna_questions
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_qna_question();
+
+-- Guard: Prevent direct username changes (bypass protection)
+CREATE OR REPLACE FUNCTION public.prevent_direct_username_change()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF OLD.username IS DISTINCT FROM NEW.username THEN
+    IF current_setting('app.allow_username_change', true) IS DISTINCT FROM 'true' THEN
+      RAISE EXCEPTION 'Use the change_username() function to change your username';
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SET search_path = public;
+
+CREATE TRIGGER guard_username_change
+  BEFORE UPDATE ON public.profiles
+  FOR EACH ROW EXECUTE FUNCTION public.prevent_direct_username_change();
+
+-- Guard: Enforce max 5 photos in persistent profile album
+CREATE OR REPLACE FUNCTION public.enforce_profile_album_limit()
+RETURNS TRIGGER AS $$
+DECLARE
+  v_photo_count INTEGER;
+BEGIN
+  -- Serialize album inserts per user to avoid race conditions across concurrent requests.
+  PERFORM 1
+  FROM public.profiles
+  WHERE user_id = NEW.user_id
+  FOR UPDATE;
+
+  SELECT count(*)::INTEGER INTO v_photo_count
+  FROM public.profile_album_photos
+  WHERE user_id = NEW.user_id;
+
+  IF v_photo_count >= 5 THEN
+    RAISE EXCEPTION 'album_limit_exceeded'
+      USING ERRCODE = 'P0001',
+            DETAIL = 'A profile album can contain up to 5 photos.';
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+CREATE TRIGGER enforce_profile_album_limit_trigger
+  BEFORE INSERT ON public.profile_album_photos
+  FOR EACH ROW EXECUTE FUNCTION public.enforce_profile_album_limit();
+
+-- Auto-create profile on signup (supports email/password + Google OAuth)
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO public.profiles (user_id, username, display_name, avatar_url)
+  VALUES (
+    NEW.id,
+    LOWER(REPLACE(COALESCE(
+      NEW.raw_user_meta_data->>'username',
+      SPLIT_PART(NEW.email, '@', 1)
+    ), ' ', '')),
+    COALESCE(
+      NEW.raw_user_meta_data->>'display_name',
+      NEW.raw_user_meta_data->>'full_name',
+      NEW.raw_user_meta_data->>'name',
+      SPLIT_PART(NEW.email, '@', 1)
+    ),
+    COALESCE(
+      NEW.raw_user_meta_data->>'avatar_url',
+      NEW.raw_user_meta_data->>'picture',
+      ''
+    )
+  );
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+
+-- =============================================================================
+-- REALTIME
+-- =============================================================================
+
+ALTER PUBLICATION supabase_realtime ADD TABLE public.posts;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.likes;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.comments;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.messages;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.community_messages;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.notifications;
+
+
+-- =============================================================================
+-- STORAGE BUCKETS & POLICIES
+-- =============================================================================
+
+-- Post media bucket
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('post-media', 'post-media', true)
+ON CONFLICT (id) DO NOTHING;
+
+-- Avatars bucket
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('avatars', 'avatars', true)
+ON CONFLICT (id) DO NOTHING;
+
+-- Banners bucket
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('banners', 'banners', true)
+ON CONFLICT (id) DO NOTHING;
+
+-- Whisper media bucket
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('whisper-media', 'whisper-media', true)
+ON CONFLICT (id) DO NOTHING;
+
+-- Profile album bucket
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('profile-album', 'profile-album', true)
+ON CONFLICT (id) DO NOTHING;
+
+-- Game House bucket (Private)
+INSERT INTO storage.buckets (id, name, public) 
+VALUES ('game-house', 'game-house', false)
+ON CONFLICT (id) DO NOTHING;
+
+-- post-media policies
+-- NOTE: No broad SELECT policy needed — public buckets serve files by URL without one.
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'objects' AND schemaname = 'storage' AND policyname = 'Authenticated users can upload') THEN
+    CREATE POLICY "Authenticated users can upload" ON storage.objects FOR INSERT TO authenticated WITH CHECK ( bucket_id = 'post-media' );
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'objects' AND schemaname = 'storage' AND policyname = 'Users can delete post media') THEN
+    CREATE POLICY "Users can delete post media" ON storage.objects FOR DELETE TO authenticated USING ( bucket_id = 'post-media' );
+  END IF;
+END $$;
+
+-- avatars policies
+-- NOTE: No broad SELECT policy needed — public buckets serve files by URL without one.
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'objects' AND schemaname = 'storage' AND policyname = 'Authenticated users can upload avatars') THEN
+    CREATE POLICY "Authenticated users can upload avatars" ON storage.objects FOR INSERT TO authenticated WITH CHECK ( bucket_id = 'avatars' );
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'objects' AND schemaname = 'storage' AND policyname = 'Users can delete their own avatars') THEN
+    CREATE POLICY "Users can delete their own avatars" ON storage.objects FOR DELETE TO authenticated USING ( bucket_id = 'avatars' AND (storage.foldername(name))[1] = auth.uid()::text );
+  END IF;
+END $$;
+
+-- banners policies
+-- NOTE: No broad SELECT policy needed — public buckets serve files by URL without one.
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'objects' AND schemaname = 'storage' AND policyname = 'Authenticated users can upload banners') THEN
+    CREATE POLICY "Authenticated users can upload banners" ON storage.objects FOR INSERT TO authenticated WITH CHECK ( bucket_id = 'banners' );
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'objects' AND schemaname = 'storage' AND policyname = 'Users can delete their own banners') THEN
+    CREATE POLICY "Users can delete their own banners" ON storage.objects FOR DELETE TO authenticated USING ( bucket_id = 'banners' AND (storage.foldername(name))[1] = auth.uid()::text );
+  END IF;
+END $$;
+
+-- whisper-media policies
+-- NOTE: No broad SELECT policy needed — public buckets serve files by URL without one.
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'objects' AND schemaname = 'storage' AND policyname = 'Authenticated users can upload whisper media') THEN
+    CREATE POLICY "Authenticated users can upload whisper media" ON storage.objects FOR INSERT TO authenticated WITH CHECK (
+      bucket_id = 'whisper-media' AND (storage.foldername(name))[1] = auth.uid()::text
+    );
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'objects' AND schemaname = 'storage' AND policyname = 'Users can delete own whisper media') THEN
+    CREATE POLICY "Users can delete own whisper media" ON storage.objects FOR DELETE TO authenticated USING (
+      bucket_id = 'whisper-media' AND (storage.foldername(name))[1] = auth.uid()::text
+    );
+  END IF;
+END $$;
+
+-- profile-album policies
+-- NOTE: No broad SELECT policy needed — public buckets serve files by URL without one.
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'objects' AND schemaname = 'storage' AND policyname = 'Authenticated users can upload profile album photos') THEN
+    CREATE POLICY "Authenticated users can upload profile album photos" ON storage.objects FOR INSERT TO authenticated WITH CHECK (
+      bucket_id = 'profile-album' AND (storage.foldername(name))[1] = auth.uid()::text
+    );
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'objects' AND schemaname = 'storage' AND policyname = 'Users can delete their own profile album photos') THEN
+    CREATE POLICY "Users can delete their own profile album photos" ON storage.objects FOR DELETE TO authenticated USING (
+      bucket_id = 'profile-album' AND (storage.foldername(name))[1] = auth.uid()::text
+    );
+  END IF;
+END $$;
+
+-- game-house policies
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'objects' AND schemaname = 'storage' AND policyname = 'Authenticated users can upload game HTML') THEN
+    CREATE POLICY "Authenticated users can upload game HTML" ON storage.objects FOR INSERT TO authenticated WITH CHECK ( bucket_id = 'game-house' );
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'objects' AND schemaname = 'storage' AND policyname = 'Users can read their own uploads') THEN
+    CREATE POLICY "Users can read their own uploads" ON storage.objects FOR SELECT USING ( bucket_id = 'game-house' AND auth.uid() = owner );
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'objects' AND schemaname = 'storage' AND policyname = 'Admins can manage all game HTML') THEN
+    CREATE POLICY "Admins can manage all game HTML" ON storage.objects FOR ALL USING ( bucket_id = 'game-house' AND public.is_admin() );
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'objects' AND schemaname = 'storage' AND policyname = 'Anyone can read game HTML if they know the path') THEN
+    CREATE POLICY "Anyone can read game HTML if they know the path" ON storage.objects FOR SELECT USING ( bucket_id = 'game-house' );
+  END IF;
+END $$;
+
+
+-- =============================================================================
+-- 24-HOUR EXPIRATION (CRON JOBS)
+-- =============================================================================
+
+-- Delete expired posts + clean up storage files via pg_net
+-- REQUIRES: vault secret 'supabase_service_role_key' to be set
+CREATE OR REPLACE FUNCTION public.delete_expired_posts()
+RETURNS void AS $$
+DECLARE
+  expired_post RECORD;
+  file_path TEXT;
+  service_key TEXT;
+BEGIN
+  -- Get the service role key from Supabase Vault
+  SELECT decrypted_secret INTO service_key
+  FROM vault.decrypted_secrets
+  WHERE name = 'supabase_service_role_key'
+  LIMIT 1;
+
+  -- If we have the key, clean up storage files first
+  IF service_key IS NOT NULL THEN
+    FOR expired_post IN
+      SELECT id, media_url FROM public.posts
+      WHERE created_at < now() - INTERVAL '24 hours'
+        AND media_url IS NOT NULL
+        AND media_url <> ''
+        AND media_url LIKE '%post-media%'
+    LOOP
+      file_path := split_part(expired_post.media_url, 'post-media/', 2);
+
+      IF file_path IS NOT NULL AND file_path <> '' THEN
+        PERFORM net.http_delete(
+          url := 'https://vhgbdtgdccomzhsuokqh.supabase.co/storage/v1/object/post-media/' || file_path,
+          headers := jsonb_build_object(
+            'Authorization', 'Bearer ' || service_key
+          )
+        );
+      END IF;
+    END LOOP;
+  END IF;
+
+  -- Delete expired posts (CASCADE handles comments, likes, bookmarks)
+  DELETE FROM public.posts
+  WHERE created_at < now() - INTERVAL '24 hours';
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, net, vault, extensions;
+
+-- Delete expired whispers
+CREATE OR REPLACE FUNCTION public.delete_expired_whispers()
+RETURNS void AS $$
+DECLARE
+  expired_message RECORD;
+  file_path TEXT;
+  service_key TEXT;
+  project_url TEXT;
+BEGIN
+  project_url := current_setting('app.settings.supabase_url', true);
+  IF project_url IS NULL OR project_url = '' THEN
+    project_url := 'https://vhgbdtgdccomzhsuokqh.supabase.co';
+  END IF;
+
+  SELECT decrypted_secret INTO service_key
+  FROM vault.decrypted_secrets
+  WHERE name = 'supabase_service_role_key'
+  LIMIT 1;
+
+  IF service_key IS NOT NULL THEN
+    FOR expired_message IN
+      SELECT media_url
+      FROM public.messages
+      WHERE created_at < now() - INTERVAL '24 hours'
+        AND media_url IS NOT NULL
+        AND media_url <> ''
+        AND media_url LIKE '%/storage/v1/object/public/whisper-media/%'
+    LOOP
+      file_path := split_part(expired_message.media_url, 'whisper-media/', 2);
+      file_path := split_part(split_part(file_path, '?', 1), '#', 1);
+
+      IF file_path IS NOT NULL AND file_path <> '' THEN
+        PERFORM net.http_delete(
+          url := project_url || '/storage/v1/object/whisper-media/' || file_path,
+          headers := jsonb_build_object(
+            'Authorization', 'Bearer ' || service_key
+          )
+        );
+      END IF;
+    END LOOP;
+  END IF;
+
+  DELETE FROM public.messages
+  WHERE created_at < now() - INTERVAL '24 hours';
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, net, vault, extensions;
+
+-- Delete expired action log entries (preserve username_change for 7 days, others 48h)
+CREATE OR REPLACE FUNCTION public.delete_expired_action_logs()
+RETURNS void AS $$
+BEGIN
+  DELETE FROM public.user_action_log
+  WHERE (action_type != 'username_change' AND created_at < now() - INTERVAL '48 hours')
+     OR (action_type = 'username_change' AND created_at < now() - INTERVAL '7 days');
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+-- Delete all notifications older than 24 hours
+CREATE OR REPLACE FUNCTION public.delete_expired_follow_notifications()
+RETURNS void AS $$
+BEGIN
+  DELETE FROM public.notifications
+  WHERE created_at < now() - INTERVAL '24 hours';
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+-- Schedule cleanups (every hour)
+SELECT cron.schedule('0 * * * *', 'SELECT public.delete_expired_posts()');
+SELECT cron.schedule('5 * * * *', 'SELECT public.delete_expired_whispers()');
+SELECT cron.schedule('10 * * * *', 'SELECT public.delete_expired_action_logs()');
+SELECT cron.schedule('15 * * * *', 'SELECT public.delete_expired_follow_notifications()');
+
+
+-- =============================================================================
+-- SERVER-SIDE RATE-LIMITED & MODERATION FUNCTIONS
+-- =============================================================================
+-- NOTE: is_action_allowed() was moved up to right after the `profiles` table
+-- (see TABLES section) because RLS policies created earlier in this file
+-- reference it. It is intentionally not duplicated here.
+
+-- Admin RPC: admin_ban_user
+CREATE OR REPLACE FUNCTION public.admin_ban_user(
+  p_user_id UUID,
+  p_minutes INTEGER,
+  p_reason TEXT DEFAULT NULL,
+  p_scopes TEXT[] DEFAULT NULL,
+  p_permanent BOOLEAN DEFAULT false
+)
+RETURNS VOID AS $$
+DECLARE
+  v_until TIMESTAMPTZ;
+  v_updated_rows INTEGER;
+BEGIN
+  IF NOT public.is_admin() THEN
+    RAISE EXCEPTION 'not_authorized';
+  END IF;
+
+  IF COALESCE(p_permanent, false) THEN
+    v_until := NULL;
+  ELSE
+    IF p_minutes IS NULL OR p_minutes <= 0 THEN
+      RAISE EXCEPTION 'invalid_ban_duration';
+    END IF;
+    v_until := now() + make_interval(mins => p_minutes);
+  END IF;
+
+  UPDATE public.profiles
+  SET banned_until = v_until,
+      ban_permanent = COALESCE(p_permanent, false),
+      ban_reason = COALESCE(p_reason, ban_reason),
+      ban_scopes = COALESCE(p_scopes, '{}'::text[])
+  WHERE user_id = p_user_id;
+
+  GET DIAGNOSTICS v_updated_rows = ROW_COUNT;
+  IF v_updated_rows = 0 THEN
+    RAISE EXCEPTION 'user_profile_not_found';
+  END IF;
+END;
+$$ LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public;
+
+-- Admin RPC: admin_unban_user
+CREATE OR REPLACE FUNCTION public.admin_unban_user(p_user_id UUID)
+RETURNS VOID AS $$
+DECLARE
+  v_updated_rows INTEGER;
+BEGIN
+  IF NOT public.is_admin() THEN
+    RAISE EXCEPTION 'not_authorized';
+  END IF;
+
+  UPDATE public.profiles
+  SET banned_until = NULL,
+      ban_permanent = false,
+      ban_reason = NULL,
+      ban_scopes = '{}'::text[]
+  WHERE user_id = p_user_id;
+
+  GET DIAGNOSTICS v_updated_rows = ROW_COUNT;
+  IF v_updated_rows = 0 THEN
+    RAISE EXCEPTION 'user_profile_not_found';
+  END IF;
+END;
+$$ LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public;
+
+-- RPC: record_post_view (unique per viewer_key + post)
+CREATE OR REPLACE FUNCTION public.record_post_view(
+  p_post_id UUID,
+  p_viewer_key TEXT,
+  p_trigger TEXT DEFAULT NULL
+)
+RETURNS JSONB AS $$
+DECLARE
+  v_post_owner UUID;
+  v_user_id UUID;
+  v_user_key TEXT;
+  v_guest_key TEXT;
+  v_views_count BIGINT := 0;
+  v_inserted_rows INTEGER := 0;
+BEGIN
+  IF p_post_id IS NULL THEN
+    RETURN jsonb_build_object('counted', false, 'reason', 'invalid_input');
+  END IF;
+
+  v_user_id := auth.uid();
+  IF p_viewer_key IS NOT NULL AND btrim(p_viewer_key) <> '' THEN
+    v_guest_key := btrim(p_viewer_key);
+  END IF;
+
+  SELECT user_id, views_count
+  INTO v_post_owner, v_views_count
+  FROM public.posts
+  WHERE id = p_post_id;
+
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('counted', false, 'reason', 'post_not_found');
+  END IF;
+
+  IF v_user_id IS NOT NULL THEN
+    v_user_key := 'u:' || v_user_id::text;
+
+    IF v_post_owner = v_user_id THEN
+      RETURN jsonb_build_object(
+        'counted', false,
+        'reason', 'self_view',
+        'views_count', COALESCE(v_views_count, 0)
+      );
+    END IF;
+
+    IF EXISTS (
+      SELECT 1
+      FROM public.post_views
+      WHERE post_id = p_post_id
+        AND (viewer_key = v_user_key OR viewer_user_id = v_user_id)
+    ) THEN
+      RETURN jsonb_build_object(
+        'counted', false,
+        'reason', 'already_counted',
+        'views_count', COALESCE(v_views_count, 0)
+      );
+    END IF;
+
+    IF v_guest_key IS NOT NULL
+       AND left(v_guest_key, 2) = 'g:'
+       AND length(v_guest_key) BETWEEN 12 AND 82
+       AND v_guest_key ~ '^g:[a-z0-9-]+$' THEN
+      UPDATE public.post_views
+      SET viewer_user_id = v_user_id
+      WHERE post_id = p_post_id
+        AND viewer_key = v_guest_key;
+
+      GET DIAGNOSTICS v_inserted_rows = ROW_COUNT;
+      IF v_inserted_rows > 0 THEN
+        RETURN jsonb_build_object(
+          'counted', false,
+          'reason', 'already_counted',
+          'views_count', COALESCE(v_views_count, 0)
+        );
+      END IF;
+    END IF;
+
+    INSERT INTO public.post_views (post_id, viewer_key, viewer_user_id, trigger)
+    VALUES (p_post_id, v_user_key, v_user_id, p_trigger)
+    ON CONFLICT (post_id, viewer_key) DO NOTHING;
+  ELSE
+    IF v_guest_key IS NULL
+       OR left(v_guest_key, 2) <> 'g:'
+       OR length(v_guest_key) NOT BETWEEN 12 AND 82
+       OR v_guest_key !~ '^g:[a-z0-9-]+$' THEN
+      RETURN jsonb_build_object('counted', false, 'reason', 'invalid_input');
+    END IF;
+
+    INSERT INTO public.post_views (post_id, viewer_key, viewer_user_id, trigger)
+    VALUES (p_post_id, v_guest_key, NULL, p_trigger)
+    ON CONFLICT (post_id, viewer_key) DO NOTHING;
+  END IF;
+
+  GET DIAGNOSTICS v_inserted_rows = ROW_COUNT;
+
+  IF v_inserted_rows > 0 THEN
+    UPDATE public.posts
+    SET views_count = views_count + 1
+    WHERE id = p_post_id
+    RETURNING views_count INTO v_views_count;
+
+    RETURN jsonb_build_object(
+      'counted', true,
+      'reason', 'counted',
+      'views_count', COALESCE(v_views_count, 0)
+    );
+  END IF;
+
+  SELECT views_count INTO v_views_count
+  FROM public.posts
+  WHERE id = p_post_id;
+
+  RETURN jsonb_build_object(
+    'counted', false,
+    'reason', 'already_counted',
+    'views_count', COALESCE(v_views_count, 0)
+  );
+END;
+$$ LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public;
+
+-- RPC: change_username (7-day cooldown, format validation, trigger-safe)
+CREATE OR REPLACE FUNCTION public.change_username(p_new_username TEXT)
+RETURNS JSONB AS $$
+DECLARE
+  v_user_id UUID;
+  v_normalized TEXT;
+  v_last_change_at TIMESTAMPTZ;
+  v_days_remaining INT;
+  v_cooldown_days INT := 7;
+BEGIN
+  v_user_id := auth.uid();
+  IF v_user_id IS NULL THEN
+    RETURN jsonb_build_object('error', 'not_authenticated', 'message', 'You must be signed in');
+  END IF;
+
+  -- Normalize
+  v_normalized := LOWER(TRIM(p_new_username));
+
+  -- Validate format
+  IF LENGTH(v_normalized) < 3 OR LENGTH(v_normalized) > 20 THEN
+    RETURN jsonb_build_object('error', 'invalid_format', 'message', 'Username must be 3–20 characters');
+  END IF;
+
+  IF v_normalized !~ '^[a-z0-9_]+$' THEN
+    RETURN jsonb_build_object('error', 'invalid_format', 'message', 'Only lowercase letters, numbers, and underscores allowed');
+  END IF;
+
+  -- Check if unchanged
+  IF EXISTS (SELECT 1 FROM public.profiles WHERE user_id = v_user_id AND username = v_normalized) THEN
+    RETURN jsonb_build_object('error', 'unchanged', 'message', 'That is already your username');
+  END IF;
+
+  -- Check cooldown (7 days)
+  SELECT MAX(created_at) INTO v_last_change_at
+  FROM public.user_action_log
+  WHERE user_id = v_user_id AND action_type = 'username_change';
+
+  IF v_last_change_at IS NOT NULL AND v_last_change_at > now() - make_interval(days => v_cooldown_days) THEN
+    v_days_remaining := CEIL(EXTRACT(EPOCH FROM (v_last_change_at + make_interval(days => v_cooldown_days) - now())) / 86400)::INT;
+    RETURN jsonb_build_object(
+      'error', 'cooldown_active',
+      'message', 'You can change your username again in ' || v_days_remaining || ' day' || CASE WHEN v_days_remaining != 1 THEN 's' ELSE '' END,
+      'retry_after_days', v_days_remaining,
+      'available_at', v_last_change_at + make_interval(days => v_cooldown_days)
+    );
+  END IF;
+
+  -- Check uniqueness
+  IF EXISTS (SELECT 1 FROM public.profiles WHERE username = v_normalized AND user_id != v_user_id) THEN
+    RETURN jsonb_build_object('error', 'username_taken', 'message', 'This username is already taken');
+  END IF;
+
+  -- Set session variable to allow the trigger to pass
+  PERFORM set_config('app.allow_username_change', 'true', true);
+
+  -- Perform the update
+  UPDATE public.profiles
+  SET username = v_normalized
+  WHERE user_id = v_user_id;
+
+  -- Log the action for cooldown tracking
+  INSERT INTO public.user_action_log (user_id, action_type)
+  VALUES (v_user_id, 'username_change');
+
+  RETURN jsonb_build_object('success', true);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+-- RPC: get_username_cooldown (single source of truth for cooldown period)
+CREATE OR REPLACE FUNCTION public.get_username_cooldown()
+RETURNS JSONB AS $$
+DECLARE
+  v_last_change_at TIMESTAMPTZ;
+  v_cooldown_days INT := 7;
+  v_available_at TIMESTAMPTZ;
+BEGIN
+  IF auth.uid() IS NULL THEN
+    RETURN jsonb_build_object('on_cooldown', false);
+  END IF;
+
+  SELECT MAX(created_at) INTO v_last_change_at
+  FROM public.user_action_log
+  WHERE user_id = auth.uid() AND action_type = 'username_change';
+
+  IF v_last_change_at IS NULL THEN
+    RETURN jsonb_build_object('on_cooldown', false);
+  END IF;
+
+  v_available_at := v_last_change_at + make_interval(days => v_cooldown_days);
+
+  IF v_available_at > now() THEN
+    RETURN jsonb_build_object('on_cooldown', true, 'available_at', v_available_at);
+  ELSE
+    RETURN jsonb_build_object('on_cooldown', false);
+  END IF;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+-- Admin RPC: admin_delete_post
+CREATE OR REPLACE FUNCTION public.admin_delete_post(p_post_id UUID)
+RETURNS VOID AS $$
+BEGIN
+  IF NOT public.is_admin() THEN
+    RAISE EXCEPTION 'not_authorized';
+  END IF;
+
+  DELETE FROM public.posts
+  WHERE id = p_post_id;
+END;
+$$ LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public;
+
+-- edit_post: owner-only edits within 24h, respects ban scopes, sets edited_at
+CREATE OR REPLACE FUNCTION public.edit_post(
+  p_post_id UUID,
+  p_content TEXT,
+  p_code TEXT DEFAULT '',
+  p_tags TEXT[] DEFAULT '{}',
+  p_media_url TEXT DEFAULT '',
+  p_is_readme BOOLEAN DEFAULT false,
+  p_code_language TEXT DEFAULT NULL
+)
+RETURNS JSONB AS $$
+DECLARE
+  v_user_id UUID;
+  v_post public.posts%ROWTYPE;
+  v_banned_until TIMESTAMPTZ;
+  v_ban_permanent BOOLEAN := false;
+  v_edited_at TIMESTAMPTZ;
+BEGIN
+  v_user_id := auth.uid();
+  IF v_user_id IS NULL THEN
+    RETURN jsonb_build_object('error', 'not_authenticated', 'message', 'You must be signed in');
+  END IF;
+
+  SELECT *
+  INTO v_post
+  FROM public.posts
+  WHERE id = p_post_id;
+
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('error', 'post_not_found', 'message', 'Post not found');
+  END IF;
+
+  IF v_post.user_id <> v_user_id THEN
+    RETURN jsonb_build_object('error', 'not_authorized', 'message', 'You can only edit your own posts');
+  END IF;
+
+  IF v_post.created_at < now() - INTERVAL '24 hours' THEN
+    RETURN jsonb_build_object('error', 'expired', 'message', 'This post has expired');
+  END IF;
+
+  SELECT banned_until, ban_permanent
+  INTO v_banned_until, v_ban_permanent
+  FROM public.profiles
+  WHERE user_id = v_user_id;
+
+  IF NOT public.is_action_allowed('post') THEN
+    RETURN jsonb_build_object(
+      'error', 'banned',
+      'message', CASE
+        WHEN v_ban_permanent THEN 'You are permanently banned from posting'
+        ELSE 'You are temporarily banned from posting'
+      END,
+      'banned_until', v_banned_until,
+      'ban_permanent', v_ban_permanent
+    );
+  END IF;
+
+  IF v_post.content = p_content
+     AND COALESCE(v_post.code, '') = COALESCE(p_code, '')
+     AND COALESCE(v_post.tags, '{}'::TEXT[]) = COALESCE(p_tags, '{}'::TEXT[])
+     AND COALESCE(v_post.media_url, '') = COALESCE(p_media_url, '')
+     AND COALESCE(v_post.is_readme, false) = COALESCE(p_is_readme, false)
+     AND COALESCE(v_post.code_language, '') = COALESCE(p_code_language, '') THEN
+    RETURN jsonb_build_object('error', 'no_changes', 'message', 'No changes detected');
+  END IF;
+
+  UPDATE public.posts
+  SET
+    content = p_content,
+    code = p_code,
+    tags = p_tags,
+    media_url = p_media_url,
+    is_readme = p_is_readme,
+    code_language = p_code_language,
+    edited_at = now()
+  WHERE id = p_post_id
+  RETURNING edited_at INTO v_edited_at;
+
+  RETURN jsonb_build_object(
+    'success', true,
+    'post_id', p_post_id,
+    'edited_at', v_edited_at
+  );
+END;
+$$ LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public;
+
+-- create_post: 30s cooldown, idempotency support, respects ban scopes
+CREATE OR REPLACE FUNCTION public.create_post(
+  p_content TEXT,
+  p_code TEXT DEFAULT '',
+  p_tags TEXT[] DEFAULT '{}',
+  p_media_url TEXT DEFAULT '',
+  p_is_readme BOOLEAN DEFAULT false,
+  p_idempotency_key TEXT DEFAULT NULL,
+  p_code_language TEXT DEFAULT NULL
+)
+RETURNS JSONB AS $$
+DECLARE
+  v_user_id UUID;
+  v_last_action_at TIMESTAMPTZ;
+  v_seconds_since_last NUMERIC;
+  v_cooldown_seconds INT := 30;
+  v_retry_after INT;
+  v_new_post_id UUID;
+  v_banned_until TIMESTAMPTZ;
+  v_ban_permanent BOOLEAN := false;
+BEGIN
+  v_user_id := auth.uid();
+  IF v_user_id IS NULL THEN
+    RETURN jsonb_build_object('error', 'not_authenticated', 'message', 'You must be signed in');
+  END IF;
+
+  -- Ban check for posting
+  SELECT banned_until, ban_permanent
+  INTO v_banned_until, v_ban_permanent
+  FROM public.profiles
+  WHERE user_id = v_user_id;
+
+  IF NOT public.is_action_allowed('post') THEN
+    RETURN jsonb_build_object(
+      'error', 'banned',
+      'message', CASE
+        WHEN v_ban_permanent THEN 'You are permanently banned from posting'
+        ELSE 'You are temporarily banned from posting'
+      END,
+      'banned_until', v_banned_until,
+      'ban_permanent', v_ban_permanent
+    );
+  END IF;
+
+  IF p_idempotency_key IS NOT NULL THEN
+    IF EXISTS (
+      SELECT 1 FROM public.user_action_log
+      WHERE user_id = v_user_id AND idempotency_key = p_idempotency_key
+    ) THEN
+      RETURN jsonb_build_object('success', true, 'deduplicated', true);
+    END IF;
+  END IF;
+
+  PERFORM pg_advisory_xact_lock(hashtext('post:' || v_user_id::text));
+
+  SELECT MAX(created_at) INTO v_last_action_at
+  FROM public.user_action_log
+  WHERE user_id = v_user_id AND action_type = 'post';
+
+  IF v_last_action_at IS NOT NULL THEN
+    v_seconds_since_last := EXTRACT(EPOCH FROM (now() - v_last_action_at));
+    IF v_seconds_since_last < v_cooldown_seconds THEN
+      v_retry_after := CEIL(v_cooldown_seconds - v_seconds_since_last)::INT;
+      RETURN jsonb_build_object(
+        'error', 'cooldown_active',
+        'message', 'Please wait before posting again',
+        'retry_after', v_retry_after
+      );
+    END IF;
+  END IF;
+
+  INSERT INTO public.posts (user_id, content, code, tags, media_url, is_readme, code_language)
+  VALUES (v_user_id, p_content, p_code, p_tags, p_media_url, p_is_readme, p_code_language)
+  RETURNING id INTO v_new_post_id;
+
+  INSERT INTO public.user_action_log (user_id, action_type, idempotency_key)
+  VALUES (v_user_id, 'post', COALESCE(p_idempotency_key, v_new_post_id::text));
+
+  RETURN jsonb_build_object('success', true, 'post_id', v_new_post_id);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+-- create_comment: 15s cooldown, idempotency support, respects ban scopes
+CREATE OR REPLACE FUNCTION public.create_comment(
+  p_post_id UUID,
+  p_content TEXT,
+  p_idempotency_key TEXT DEFAULT NULL
+)
+RETURNS JSONB AS $$
+DECLARE
+  v_user_id UUID;
+  v_last_action_at TIMESTAMPTZ;
+  v_seconds_since_last NUMERIC;
+  v_cooldown_seconds INT := 15;
+  v_retry_after INT;
+  v_new_comment_id UUID;
+  v_banned_until TIMESTAMPTZ;
+  v_ban_permanent BOOLEAN := false;
+BEGIN
+  v_user_id := auth.uid();
+  IF v_user_id IS NULL THEN
+    RETURN jsonb_build_object('error', 'not_authenticated', 'message', 'You must be signed in');
+  END IF;
+
+  -- Ban check for commenting
+  SELECT banned_until, ban_permanent
+  INTO v_banned_until, v_ban_permanent
+  FROM public.profiles
+  WHERE user_id = v_user_id;
+
+  IF NOT public.is_action_allowed('comment') THEN
+    RETURN jsonb_build_object(
+      'error', 'banned',
+      'message', CASE
+        WHEN v_ban_permanent THEN 'You are permanently banned from commenting'
+        ELSE 'You are temporarily banned from commenting'
+      END,
+      'banned_until', v_banned_until,
+      'ban_permanent', v_ban_permanent
+    );
+  END IF;
+
+  IF p_idempotency_key IS NOT NULL THEN
+    IF EXISTS (
+      SELECT 1 FROM public.user_action_log
+      WHERE user_id = v_user_id AND idempotency_key = p_idempotency_key
+    ) THEN
+      RETURN jsonb_build_object('success', true, 'deduplicated', true);
+    END IF;
+  END IF;
+
+  PERFORM pg_advisory_xact_lock(hashtext('comment:' || v_user_id::text));
+
+  SELECT MAX(created_at) INTO v_last_action_at
+  FROM public.user_action_log
+  WHERE user_id = v_user_id AND action_type = 'comment';
+
+  IF v_last_action_at IS NOT NULL THEN
+    v_seconds_since_last := EXTRACT(EPOCH FROM (now() - v_last_action_at));
+    IF v_seconds_since_last < v_cooldown_seconds THEN
+      v_retry_after := CEIL(v_cooldown_seconds - v_seconds_since_last)::INT;
+      RETURN jsonb_build_object(
+        'error', 'cooldown_active',
+        'message', 'Please wait before commenting again',
+        'retry_after', v_retry_after
+      );
+    END IF;
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM public.posts WHERE id = p_post_id) THEN
+    RETURN jsonb_build_object('error', 'post_not_found', 'message', 'Post not found');
+  END IF;
+
+  INSERT INTO public.comments (post_id, user_id, content)
+  VALUES (p_post_id, v_user_id, p_content)
+  RETURNING id INTO v_new_comment_id;
+
+  INSERT INTO public.user_action_log (user_id, action_type, idempotency_key)
+  VALUES (v_user_id, 'comment', COALESCE(p_idempotency_key, v_new_comment_id::text));
+
+  RETURN jsonb_build_object('success', true, 'comment_id', v_new_comment_id);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+-- delete_comment: server-side comment deletion (bypasses RLS, checks ownership/admin)
+CREATE OR REPLACE FUNCTION public.delete_comment(p_comment_id UUID)
+RETURNS JSONB AS $$
+DECLARE
+  v_user_id UUID;
+  v_comment_owner UUID;
+  v_post_id UUID;
+  v_post_owner UUID;
+BEGIN
+  v_user_id := auth.uid();
+  IF v_user_id IS NULL THEN
+    RETURN jsonb_build_object('error', 'not_authenticated', 'message', 'You must be signed in');
+  END IF;
+
+  -- Get comment metadata
+  SELECT user_id, post_id INTO v_comment_owner, v_post_id
+  FROM public.comments
+  WHERE id = p_comment_id;
+
+  IF v_comment_owner IS NULL THEN
+    RETURN jsonb_build_object('error', 'not_found', 'message', 'Comment not found');
+  END IF;
+
+  -- Get post owner
+  SELECT user_id INTO v_post_owner
+  FROM public.posts
+  WHERE id = v_post_id;
+
+  -- Check authorization: must be comment owner, post owner, or admin
+  IF v_comment_owner != v_user_id AND v_post_owner != v_user_id AND NOT public.is_admin() THEN
+    RETURN jsonb_build_object('error', 'not_authorized', 'message', 'You can only delete your own comments (or echoes on your posts)');
+  END IF;
+
+  DELETE FROM public.comments WHERE id = p_comment_id;
+
+  RETURN jsonb_build_object('success', true);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+-- create_game_comment: 15s cooldown, idempotency support, respects ban scopes
+CREATE OR REPLACE FUNCTION public.create_game_comment(
+  p_game_id UUID,
+  p_content TEXT,
+  p_idempotency_key TEXT DEFAULT NULL
+)
+RETURNS JSONB AS $$
+DECLARE
+  v_user_id UUID;
+  v_last_action_at TIMESTAMPTZ;
+  v_seconds_since_last NUMERIC;
+  v_cooldown_seconds INT := 15;
+  v_retry_after INT;
+  v_new_comment_id UUID;
+  v_banned_until TIMESTAMPTZ;
+  v_ban_permanent BOOLEAN := false;
+BEGIN
+  v_user_id := auth.uid();
+  IF v_user_id IS NULL THEN
+    RETURN jsonb_build_object('error', 'not_authenticated', 'message', 'You must be signed in');
+  END IF;
+
+  IF p_content IS NULL OR length(trim(p_content)) = 0 THEN
+    RETURN jsonb_build_object('error', 'invalid_content', 'message', 'Comment cannot be empty');
+  END IF;
+
+  -- Ban check for commenting
+  SELECT banned_until, ban_permanent
+  INTO v_banned_until, v_ban_permanent
+  FROM public.profiles
+  WHERE user_id = v_user_id;
+
+  IF NOT public.is_action_allowed('comment') THEN
+    RETURN jsonb_build_object(
+      'error', 'banned',
+      'message', CASE
+        WHEN v_ban_permanent THEN 'You are permanently banned from commenting'
+        ELSE 'You are temporarily banned from commenting'
+      END,
+      'banned_until', v_banned_until,
+      'ban_permanent', v_ban_permanent
+    );
+  END IF;
+
+  IF p_idempotency_key IS NOT NULL THEN
+    IF EXISTS (
+      SELECT 1 FROM public.user_action_log
+      WHERE user_id = v_user_id AND idempotency_key = p_idempotency_key
+    ) THEN
+      RETURN jsonb_build_object('success', true, 'deduplicated', true);
+    END IF;
+  END IF;
+
+  PERFORM pg_advisory_xact_lock(hashtext('comment:' || v_user_id::text));
+
+  SELECT MAX(created_at) INTO v_last_action_at
+  FROM public.user_action_log
+  WHERE user_id = v_user_id AND action_type = 'comment';
+
+  IF v_last_action_at IS NOT NULL THEN
+    v_seconds_since_last := EXTRACT(EPOCH FROM (now() - v_last_action_at));
+    IF v_seconds_since_last < v_cooldown_seconds THEN
+      v_retry_after := CEIL(v_cooldown_seconds - v_seconds_since_last)::INT;
+      RETURN jsonb_build_object(
+        'error', 'cooldown_active',
+        'message', 'Please wait before commenting again',
+        'retry_after', v_retry_after
+      );
+    END IF;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM public.game_house
+    WHERE id = p_game_id AND status = 'approved'
+  ) THEN
+    RETURN jsonb_build_object('error', 'game_not_found', 'message', 'Game not found');
+  END IF;
+
+  INSERT INTO public.game_house_comments (game_id, user_id, content)
+  VALUES (p_game_id, v_user_id, trim(p_content))
+  RETURNING id INTO v_new_comment_id;
+
+  INSERT INTO public.user_action_log (user_id, action_type, idempotency_key)
+  VALUES (v_user_id, 'comment', COALESCE(p_idempotency_key, v_new_comment_id::text));
+
+  RETURN jsonb_build_object('success', true, 'comment_id', v_new_comment_id);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+-- delete_game_comment: server-side game comment deletion (bypasses RLS, checks ownership/admin)
+CREATE OR REPLACE FUNCTION public.delete_game_comment(p_comment_id UUID)
+RETURNS JSONB AS $$
+DECLARE
+  v_user_id UUID;
+  v_comment_owner UUID;
+  v_game_id UUID;
+  v_game_owner UUID;
+BEGIN
+  v_user_id := auth.uid();
+  IF v_user_id IS NULL THEN
+    RETURN jsonb_build_object('error', 'not_authenticated', 'message', 'You must be signed in');
+  END IF;
+
+  SELECT user_id, game_id
+  INTO v_comment_owner, v_game_id
+  FROM public.game_house_comments
+  WHERE id = p_comment_id;
+
+  IF v_comment_owner IS NULL THEN
+    RETURN jsonb_build_object('error', 'not_found', 'message', 'Comment not found');
+  END IF;
+
+  SELECT submitted_by INTO v_game_owner
+  FROM public.game_house
+  WHERE id = v_game_id;
+
+  IF v_comment_owner != v_user_id AND v_game_owner != v_user_id AND NOT public.is_admin() THEN
+    RETURN jsonb_build_object('error', 'not_authorized', 'message', 'You cannot delete this comment');
+  END IF;
+
+  DELETE FROM public.game_house_comments WHERE id = p_comment_id;
+
+  RETURN jsonb_build_object('success', true);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+
+-- =============================================================================
+-- NOTIFICATION TRIGGERS
+-- =============================================================================
+
+-- On like → notify post owner (skip self-like)
+CREATE OR REPLACE FUNCTION public.notify_on_like()
+RETURNS TRIGGER AS $$
+DECLARE
+  v_post_owner UUID;
+BEGIN
+  SELECT user_id INTO v_post_owner FROM public.posts WHERE id = NEW.post_id;
+  IF v_post_owner IS NOT NULL AND v_post_owner <> NEW.user_id THEN
+    INSERT INTO public.notifications (user_id, actor_id, type, post_id)
+    VALUES (v_post_owner, NEW.user_id, 'like', NEW.post_id);
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+CREATE TRIGGER on_like_notify
+  AFTER INSERT ON public.likes
+  FOR EACH ROW EXECUTE FUNCTION public.notify_on_like();
+
+-- On unlike → notify post owner (skip self-unlike)
+CREATE OR REPLACE FUNCTION public.notify_on_unlike()
+RETURNS TRIGGER AS $$
+DECLARE
+  v_post_owner UUID;
+BEGIN
+  -- Only create a notification when the authenticated user is the liker
+  IF auth.uid() IS NULL OR auth.uid() <> OLD.user_id THEN
+    RETURN OLD;
+  END IF;
+
+  SELECT user_id INTO v_post_owner
+  FROM public.posts
+  WHERE id = OLD.post_id;
+
+  IF v_post_owner IS NULL OR v_post_owner = OLD.user_id THEN
+    RETURN OLD;
+  END IF;
+
+  -- Guard against account-deletion cascades where either side may be deleted.
+  IF NOT EXISTS (SELECT 1 FROM auth.users WHERE id = OLD.user_id) THEN
+    RETURN OLD;
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM auth.users WHERE id = v_post_owner) THEN
+    RETURN OLD;
+  END IF;
+
+  INSERT INTO public.notifications (user_id, actor_id, type, post_id)
+  VALUES (v_post_owner, OLD.user_id, 'unlike', OLD.post_id);
+
+  RETURN OLD;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, auth;
+
+CREATE TRIGGER on_unlike_notify
+  AFTER DELETE ON public.likes
+  FOR EACH ROW EXECUTE FUNCTION public.notify_on_unlike();
+
+-- On comment → notify post owner (skip self-comment)
+CREATE OR REPLACE FUNCTION public.notify_on_comment()
+RETURNS TRIGGER AS $$
+DECLARE
+  v_post_owner UUID;
+BEGIN
+  SELECT user_id INTO v_post_owner FROM public.posts WHERE id = NEW.post_id;
+  IF v_post_owner IS NOT NULL AND v_post_owner <> NEW.user_id THEN
+    INSERT INTO public.notifications (user_id, actor_id, type, post_id, comment_id)
+    VALUES (v_post_owner, NEW.user_id, 'comment', NEW.post_id, NEW.id);
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+CREATE TRIGGER on_comment_notify
+  AFTER INSERT ON public.comments
+  FOR EACH ROW EXECUTE FUNCTION public.notify_on_comment();
+
+-- On uncomment → notify post owner (skip self-uncomment)
+CREATE OR REPLACE FUNCTION public.notify_on_uncomment()
+RETURNS TRIGGER AS $$
+DECLARE
+  v_post_owner UUID;
+BEGIN
+  -- Only create a notification when the authenticated user is the commenter
+  IF auth.uid() IS NULL OR auth.uid() <> OLD.user_id THEN
+    RETURN OLD;
+  END IF;
+
+  SELECT user_id INTO v_post_owner
+  FROM public.posts
+  WHERE id = OLD.post_id;
+
+  IF v_post_owner IS NULL OR v_post_owner = OLD.user_id THEN
+    RETURN OLD;
+  END IF;
+
+  -- Guard against account-deletion cascades where either side may be deleted.
+  IF NOT EXISTS (SELECT 1 FROM auth.users WHERE id = OLD.user_id) THEN
+    RETURN OLD;
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM auth.users WHERE id = v_post_owner) THEN
+    RETURN OLD;
+  END IF;
+
+  INSERT INTO public.notifications (user_id, actor_id, type, post_id)
+  VALUES (v_post_owner, OLD.user_id, 'uncomment', OLD.post_id);
+
+  RETURN OLD;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, auth;
+
+CREATE TRIGGER on_uncomment_notify
+  AFTER DELETE ON public.comments
+  FOR EACH ROW EXECUTE FUNCTION public.notify_on_uncomment();
+
+-- On game like → notify game owner (skip self-like)
+CREATE OR REPLACE FUNCTION public.notify_on_game_like()
+RETURNS TRIGGER AS $$
+DECLARE
+  v_game_owner UUID;
+BEGIN
+  SELECT submitted_by INTO v_game_owner
+  FROM public.game_house
+  WHERE id = NEW.game_id;
+
+  IF v_game_owner IS NULL OR v_game_owner = NEW.user_id THEN
+    RETURN NEW;
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM auth.users WHERE id = NEW.user_id) THEN
+    RETURN NEW;
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM auth.users WHERE id = v_game_owner) THEN
+    RETURN NEW;
+  END IF;
+
+  INSERT INTO public.notifications (user_id, actor_id, type, game_id)
+  VALUES (v_game_owner, NEW.user_id, 'game_like', NEW.game_id);
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, auth;
+
+CREATE TRIGGER on_game_like_notify
+  AFTER INSERT ON public.game_house_likes
+  FOR EACH ROW EXECUTE FUNCTION public.notify_on_game_like();
+
+-- On game comment → notify game owner (skip self-comment)
+CREATE OR REPLACE FUNCTION public.notify_on_game_comment()
+RETURNS TRIGGER AS $$
+DECLARE
+  v_game_owner UUID;
+BEGIN
+  SELECT submitted_by INTO v_game_owner
+  FROM public.game_house
+  WHERE id = NEW.game_id;
+
+  IF v_game_owner IS NULL OR v_game_owner = NEW.user_id THEN
+    RETURN NEW;
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM auth.users WHERE id = NEW.user_id) THEN
+    RETURN NEW;
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM auth.users WHERE id = v_game_owner) THEN
+    RETURN NEW;
+  END IF;
+
+  INSERT INTO public.notifications (user_id, actor_id, type, game_id)
+  VALUES (v_game_owner, NEW.user_id, 'game_comment', NEW.game_id);
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, auth;
+
+CREATE TRIGGER on_game_comment_notify
+  AFTER INSERT ON public.game_house_comments
+  FOR EACH ROW EXECUTE FUNCTION public.notify_on_game_comment();
+
+-- On follow → notify followed user
+CREATE OR REPLACE FUNCTION public.notify_on_follow()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.follower_id <> NEW.following_id THEN
+    INSERT INTO public.notifications (user_id, actor_id, type)
+    VALUES (NEW.following_id, NEW.follower_id, 'follow');
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+CREATE TRIGGER on_follow_notify
+  AFTER INSERT ON public.follows
+  FOR EACH ROW EXECUTE FUNCTION public.notify_on_follow();
+
+-- On unfollow → notify unfollowed user
+CREATE OR REPLACE FUNCTION public.notify_on_unfollow()
+RETURNS TRIGGER AS $$
+BEGIN
+  -- Only create a notification when the authenticated user is the follower
+  IF auth.uid() IS NULL OR auth.uid() <> OLD.follower_id THEN
+    RETURN OLD;
+  END IF;
+
+  IF OLD.follower_id = OLD.following_id THEN
+    RETURN OLD;
+  END IF;
+
+  -- Guard against account-deletion cascades where either side may be deleted.
+  IF NOT EXISTS (SELECT 1 FROM auth.users WHERE id = OLD.follower_id) THEN
+    RETURN OLD;
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM auth.users WHERE id = OLD.following_id) THEN
+    RETURN OLD;
+  END IF;
+
+  INSERT INTO public.notifications (user_id, actor_id, type)
+  VALUES (OLD.following_id, OLD.follower_id, 'unfollow');
+
+  RETURN OLD;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, auth;
+
+CREATE TRIGGER on_unfollow_notify
+  AFTER DELETE ON public.follows
+  FOR EACH ROW EXECUTE FUNCTION public.notify_on_unfollow();
+
+
+-- Mention handling: Extract mentions (@username) and notify users
+CREATE OR REPLACE FUNCTION public.handle_mentions(
+  p_content TEXT,
+  p_actor_id UUID,
+  p_post_id UUID,
+  p_comment_id UUID DEFAULT NULL
+)
+RETURNS VOID AS $$
+DECLARE
+  v_mention RECORD;
+  v_target_user_id UUID;
+BEGIN
+  FOR v_mention IN 
+    SELECT DISTINCT (regexp_matches(p_content, '(^|[^a-z0-9_])@([a-z0-9_]{3,30})(?![a-z0-9_])', 'gi'))[2] as username
+  LOOP
+    SELECT user_id INTO v_target_user_id FROM public.profiles WHERE LOWER(username) = LOWER(v_mention.username);
+
+    IF v_target_user_id IS NOT NULL AND v_target_user_id <> p_actor_id THEN
+      IF NOT EXISTS (
+        SELECT 1 FROM public.notifications 
+        WHERE user_id = v_target_user_id 
+          AND actor_id = p_actor_id 
+          AND type = 'mention' 
+          AND post_id = p_post_id 
+          AND (p_comment_id IS NULL OR comment_id = p_comment_id)
+      ) THEN
+        INSERT INTO public.notifications (user_id, actor_id, type, post_id, comment_id)
+        VALUES (v_target_user_id, p_actor_id, 'mention', p_post_id, p_comment_id);
+      END IF;
+    END IF;
+  END LOOP;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+-- Trigger: Notification on post mention
+CREATE OR REPLACE FUNCTION public.notify_on_post_mention()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.content IS NOT NULL AND NEW.content <> '' THEN
+    PERFORM public.handle_mentions(NEW.content, NEW.user_id, NEW.id);
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+CREATE TRIGGER on_post_mention_notify
+  AFTER INSERT OR UPDATE OF content ON public.posts
+  FOR EACH ROW EXECUTE FUNCTION public.notify_on_post_mention();
+
+-- Trigger: Notification on comment mention
+CREATE OR REPLACE FUNCTION public.notify_on_comment_mention()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.content IS NOT NULL AND NEW.content <> '' THEN
+    PERFORM public.handle_mentions(NEW.content, NEW.user_id, NEW.post_id, NEW.id);
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+CREATE TRIGGER on_comment_mention_notify
+  AFTER INSERT OR UPDATE OF content ON public.comments
+  FOR EACH ROW EXECUTE FUNCTION public.notify_on_comment_mention();
+
+
+-- =============================================================================
+-- PUSH NOTIFICATIONS
+-- =============================================================================
+
+-- Push subscription storage for Web Push API
+CREATE TABLE public.push_subscriptions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  endpoint TEXT NOT NULL,
+  p256dh TEXT NOT NULL,
+  auth TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(user_id, endpoint)
+);
+
+CREATE INDEX idx_push_subscriptions_user ON public.push_subscriptions (user_id);
+
+ALTER TABLE public.push_subscriptions ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view own push subscriptions"
+  ON public.push_subscriptions FOR SELECT USING ((select auth.uid()) = user_id);
+CREATE POLICY "Users can insert own push subscriptions"
+  ON public.push_subscriptions FOR INSERT WITH CHECK ((select auth.uid()) = user_id);
+CREATE POLICY "Users can delete own push subscriptions"
+  ON public.push_subscriptions FOR DELETE USING ((select auth.uid()) = user_id);
+
+-- RPC: Upsert push subscription (removes endpoint from other users first)
+CREATE OR REPLACE FUNCTION public.upsert_push_subscription(
+  p_endpoint TEXT,
+  p_p256dh TEXT,
+  p_auth TEXT
+)
+RETURNS VOID AS $$
+DECLARE
+  v_user_id UUID := auth.uid();
+BEGIN
+  IF v_user_id IS NULL THEN
+    RAISE EXCEPTION 'Not authenticated';
+  END IF;
+
+  -- Remove this endpoint from any other user (same browser, different account)
+  DELETE FROM public.push_subscriptions
+  WHERE endpoint = p_endpoint AND user_id <> v_user_id;
+
+  -- Upsert for the current user
+  INSERT INTO public.push_subscriptions (user_id, endpoint, p256dh, auth)
+  VALUES (v_user_id, p_endpoint, p_p256dh, p_auth)
+  ON CONFLICT (user_id, endpoint)
+  DO UPDATE SET p256dh = EXCLUDED.p256dh, auth = EXCLUDED.auth;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+-- Trigger: Send push notification via Supabase Edge Function
+CREATE OR REPLACE FUNCTION public.send_push_notification()
+RETURNS TRIGGER AS $$
+DECLARE
+  v_project_url TEXT;
+  v_service_key TEXT;
+BEGIN
+  -- Get the Supabase URL and service role key from vault
+  v_project_url := current_setting('app.settings.supabase_url', true);
+  IF v_project_url IS NULL OR v_project_url = '' THEN
+    v_project_url := 'https://vhgbdtgdccomzhsuokqh.supabase.co';
+  END IF;
+
+  SELECT decrypted_secret INTO v_service_key
+  FROM vault.decrypted_secrets
+  WHERE name = 'supabase_service_role_key'
+  LIMIT 1;
+
+  IF v_service_key IS NOT NULL THEN
+    -- Check if user has any push subscriptions before making HTTP call
+    IF EXISTS (SELECT 1 FROM public.push_subscriptions WHERE user_id = NEW.user_id) THEN
+      PERFORM net.http_post(
+        url := v_project_url || '/functions/v1/send-push',
+        headers := jsonb_build_object(
+          'Content-Type', 'application/json',
+          'Authorization', 'Bearer ' || v_service_key
+        ),
+        body := jsonb_build_object(
+          'user_id', NEW.user_id,
+          'type', NEW.type,
+          'actor_id', NEW.actor_id,
+          'post_id', NEW.post_id,
+          'game_id', NEW.game_id
+        )
+      );
+    END IF;
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, net, vault;
+
+CREATE TRIGGER on_notification_send_push
+  AFTER INSERT ON public.notifications
+  FOR EACH ROW EXECUTE FUNCTION public.send_push_notification();
+
+-- Trigger: Send push notification on new whisper (DM)
+CREATE OR REPLACE FUNCTION public.send_whisper_push_notification()
+RETURNS TRIGGER AS $$
+DECLARE
+  v_project_url TEXT;
+  v_service_key TEXT;
+BEGIN
+  -- Get the Supabase URL
+  v_project_url := current_setting('app.settings.supabase_url', true);
+  IF v_project_url IS NULL OR v_project_url = '' THEN
+    v_project_url := 'https://vhgbdtgdccomzhsuokqh.supabase.co';
+  END IF;
+
+  -- Get service role key from vault
+  SELECT decrypted_secret INTO v_service_key
+  FROM vault.decrypted_secrets
+  WHERE name = 'supabase_service_role_key'
+  LIMIT 1;
+
+  IF v_service_key IS NOT NULL THEN
+    -- Only fire if receiver has push subscriptions
+    IF EXISTS (SELECT 1 FROM public.push_subscriptions WHERE user_id = NEW.receiver_id) THEN
+      PERFORM net.http_post(
+        url := v_project_url || '/functions/v1/send-push',
+        headers := jsonb_build_object(
+          'Content-Type', 'application/json',
+          'Authorization', 'Bearer ' || v_service_key
+        ),
+        body := jsonb_build_object(
+          'user_id', NEW.receiver_id,
+          'type', 'whisper',
+          'actor_id', NEW.sender_id,
+          'message_content', CASE
+            WHEN nullif(btrim(NEW.content), '') IS NOT NULL THEN LEFT(NEW.content, 150)
+            ELSE ''
+          END,
+          'has_media', NEW.media_url IS NOT NULL
+        )
+      );
+    END IF;
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, net, vault;
+
+CREATE TRIGGER on_whisper_send_push
+  AFTER INSERT ON public.messages
+  FOR EACH ROW EXECUTE FUNCTION public.send_whisper_push_notification();
+
+
+-- =============================================================================
+-- ACCOUNT MANAGEMENT
+-- =============================================================================
+
+-- Delete user account and all associated data (including storage cleanup)
+CREATE OR REPLACE FUNCTION public.delete_user_account()
+RETURNS jsonb AS $$
+DECLARE
+    v_user_id UUID;
+    v_project_id TEXT := 'vhgbdtgdccomzhsuokqh';
+    v_service_key TEXT;
+    v_record RECORD;
+    v_file_path TEXT;
+BEGIN
+    v_user_id := auth.uid();
+    IF v_user_id IS NULL THEN
+        RETURN jsonb_build_object('error', 'unauthorized', 'message', 'You must be logged in');
+    END IF;
+
+    -- Get service role key for storage cleanup
+    SELECT decrypted_secret INTO v_service_key
+    FROM vault.decrypted_secrets
+    WHERE name = 'supabase_service_role_key'
+    LIMIT 1;
+
+    -- Cleanup Storage
+    IF v_service_key IS NOT NULL THEN
+        -- Post Media
+        FOR v_record IN SELECT media_url FROM public.posts WHERE user_id = v_user_id AND media_url IS NOT NULL AND media_url <> '' LOOP
+            v_file_path := split_part(v_record.media_url, 'post-media/', 2);
+            IF v_file_path IS NOT NULL AND v_file_path <> '' THEN
+                PERFORM net.http_delete(
+                    url := 'https://' || v_project_id || '.supabase.co/storage/v1/object/post-media/' || v_file_path,
+                    headers := jsonb_build_object('Authorization', 'Bearer ' || v_service_key)
+                );
+            END IF;
+        END LOOP;
+
+        -- Avatar & Banner
+        FOR v_record IN SELECT avatar_url, banner_url FROM public.profiles WHERE user_id = v_user_id LOOP
+            -- Avatar
+            IF v_record.avatar_url IS NOT NULL AND v_record.avatar_url <> '' THEN
+                v_file_path := split_part(v_record.avatar_url, 'avatars/', 2);
+                IF v_file_path IS NOT NULL AND v_file_path <> '' THEN
+                    PERFORM net.http_delete(
+                        url := 'https://' || v_project_id || '.supabase.co/storage/v1/object/avatars/' || v_file_path,
+                        headers := jsonb_build_object('Authorization', 'Bearer ' || v_service_key)
+                    );
+                END IF;
+            END IF;
+            -- Banner
+            IF v_record.banner_url IS NOT NULL AND v_record.banner_url <> '' THEN
+                v_file_path := split_part(v_record.banner_url, 'banners/', 2);
+                IF v_file_path IS NOT NULL AND v_file_path <> '' THEN
+                    PERFORM net.http_delete(
+                        url := 'https://' || v_project_id || '.supabase.co/storage/v1/object/banners/' || v_file_path,
+                        headers := jsonb_build_object('Authorization', 'Bearer ' || v_service_key)
+                    );
+                END IF;
+            END IF;
+        END LOOP;
+
+        -- Profile Album
+        FOR v_record IN
+            SELECT storage_path
+            FROM public.profile_album_photos
+            WHERE user_id = v_user_id
+              AND storage_path IS NOT NULL
+              AND storage_path <> ''
+        LOOP
+            PERFORM net.http_delete(
+                url := 'https://' || v_project_id || '.supabase.co/storage/v1/object/profile-album/' || v_record.storage_path,
+                headers := jsonb_build_object('Authorization', 'Bearer ' || v_service_key)
+            );
+        END LOOP;
+    END IF;
+
+    DELETE FROM auth.users WHERE id = v_user_id;
+
+    RETURN jsonb_build_object('success', true, 'message', 'Account and data wiped');
+EXCEPTION
+    WHEN OTHERS THEN
+        RETURN jsonb_build_object('error', 'internal_error', 'message', SQLERRM);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, auth, extensions, vault, net;
+
+-- =============================================================================
+-- GAME HOUSE (RPCs)
+-- =============================================================================
+
+-- RPC to increment play count securely
+CREATE OR REPLACE FUNCTION public.increment_game_play_count(p_game_id UUID)
+RETURNS VOID AS $$
+BEGIN
+  -- Only increment if it is approved, or if admin.
+  UPDATE public.game_house
+  SET play_count = play_count + 1
+  WHERE id = p_game_id AND status = 'approved';
+END;
+$$ LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public;
+
+-- RPC to notify admins when a new game is submitted
+CREATE OR REPLACE FUNCTION public.notify_admins_new_game(p_actor_id UUID)
+RETURNS VOID AS $$
+BEGIN
+  INSERT INTO public.notifications (user_id, actor_id, type)
+  SELECT user_id, p_actor_id, 'game_submission'
+  FROM public.admin_users
+  WHERE user_id <> p_actor_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+-- RPC to notify a user about their game submission status
+CREATE OR REPLACE FUNCTION public.notify_user_game_status(p_user_id UUID, p_actor_id UUID, p_status TEXT)
+RETURNS VOID AS $$
+BEGIN
+  IF p_status = 'approved' THEN
+    INSERT INTO public.notifications (user_id, actor_id, type)
+    VALUES (p_user_id, p_actor_id, 'game_approved');
+  ELSIF p_status = 'rejected' THEN
+    INSERT INTO public.notifications (user_id, actor_id, type)
+    VALUES (p_user_id, p_actor_id, 'game_rejected');
+  END IF;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+
+-- =============================================================================
+-- FUNCTION EXECUTION PERMISSIONS (Security Lint Fixes)
+-- Lock down internal trigger/cron functions so they cannot be called via the API.
+-- Lock down frontend RPCs so only authenticated users can call them.
+-- =============================================================================
+
+-- Internal triggers & cron helpers: fully revoke from public, anon, authenticated
+REVOKE EXECUTE ON FUNCTION public.delete_expired_action_logs() FROM public, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.delete_expired_follow_notifications() FROM public, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.delete_expired_posts() FROM public, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.delete_expired_whispers() FROM public, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.enforce_profile_album_limit() FROM public, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.handle_mentions(text, uuid, uuid, uuid) FROM public, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.handle_new_qna_question() FROM public, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.handle_new_user() FROM public, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.notify_admins_new_game(uuid) FROM public, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.notify_on_comment() FROM public, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.notify_on_comment_mention() FROM public, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.notify_on_follow() FROM public, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.notify_on_game_comment() FROM public, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.notify_on_game_like() FROM public, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.notify_on_like() FROM public, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.notify_on_post_mention() FROM public, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.notify_on_uncomment() FROM public, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.notify_on_unfollow() FROM public, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.notify_on_unlike() FROM public, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.notify_user_game_status(uuid, uuid, text) FROM public, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.send_push_notification() FROM public, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.send_whisper_push_notification() FROM public, anon, authenticated;
+
+-- Frontend RPCs: revoke from public & anon, grant only to authenticated
+REVOKE EXECUTE ON FUNCTION public.admin_ban_user(uuid, integer, text, text[], boolean) FROM public, anon;
+GRANT EXECUTE ON FUNCTION public.admin_ban_user(uuid, integer, text, text[], boolean) TO authenticated;
+
+REVOKE EXECUTE ON FUNCTION public.admin_delete_post(uuid) FROM public, anon;
+GRANT EXECUTE ON FUNCTION public.admin_delete_post(uuid) TO authenticated;
+
+REVOKE EXECUTE ON FUNCTION public.admin_unban_user(uuid) FROM public, anon;
+GRANT EXECUTE ON FUNCTION public.admin_unban_user(uuid) TO authenticated;
+
+REVOKE EXECUTE ON FUNCTION public.change_username(text) FROM public, anon;
+GRANT EXECUTE ON FUNCTION public.change_username(text) TO authenticated;
+
+REVOKE EXECUTE ON FUNCTION public.create_comment(uuid, text, text) FROM public, anon;
+GRANT EXECUTE ON FUNCTION public.create_comment(uuid, text, text) TO authenticated;
+
+REVOKE EXECUTE ON FUNCTION public.create_game_comment(uuid, text, text) FROM public, anon;
+GRANT EXECUTE ON FUNCTION public.create_game_comment(uuid, text, text) TO authenticated;
+
+REVOKE EXECUTE ON FUNCTION public.create_post(text, text, text[], text, boolean, text, text) FROM public, anon;
+GRANT EXECUTE ON FUNCTION public.create_post(text, text, text[], text, boolean, text, text) TO authenticated;
+
+REVOKE EXECUTE ON FUNCTION public.delete_comment(uuid) FROM public, anon;
+GRANT EXECUTE ON FUNCTION public.delete_comment(uuid) TO authenticated;
+
+REVOKE EXECUTE ON FUNCTION public.delete_game_comment(uuid) FROM public, anon;
+GRANT EXECUTE ON FUNCTION public.delete_game_comment(uuid) TO authenticated;
+
+REVOKE EXECUTE ON FUNCTION public.delete_user_account() FROM public, anon;
+GRANT EXECUTE ON FUNCTION public.delete_user_account() TO authenticated;
+
+REVOKE EXECUTE ON FUNCTION public.edit_post(uuid, text, text, text[], text, boolean, text) FROM public, anon;
+GRANT EXECUTE ON FUNCTION public.edit_post(uuid, text, text, text[], text, boolean, text) TO authenticated;
+
+REVOKE EXECUTE ON FUNCTION public.get_username_cooldown() FROM public, anon;
+GRANT EXECUTE ON FUNCTION public.get_username_cooldown() TO authenticated;
+
+REVOKE EXECUTE ON FUNCTION public.increment_game_play_count(uuid) FROM public, anon;
+GRANT EXECUTE ON FUNCTION public.increment_game_play_count(uuid) TO authenticated;
+
+REVOKE EXECUTE ON FUNCTION public.is_action_allowed(text) FROM public, anon;
+GRANT EXECUTE ON FUNCTION public.is_action_allowed(text) TO authenticated;
+
+REVOKE EXECUTE ON FUNCTION public.is_admin() FROM public, anon;
+GRANT EXECUTE ON FUNCTION public.is_admin() TO authenticated;
+
+REVOKE EXECUTE ON FUNCTION public.record_post_view(uuid, text, text) FROM public, anon;
+GRANT EXECUTE ON FUNCTION public.record_post_view(uuid, text, text) TO authenticated;
+
+REVOKE EXECUTE ON FUNCTION public.upsert_push_subscription(text, text, text) FROM public, anon;
+GRANT EXECUTE ON FUNCTION public.upsert_push_subscription(text, text, text) TO authenticated;
+
+
+
+
+
+SELECT vault.create_secret('supabase_service_role_key', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZoZ2JkdGdkY2NvbXpoc3Vva3FoIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4NjI1NjY4MCwiZXhwIjoyMTAxODMyNjgwfQ.QUnWwZ6Y6XD0t1L5Kin-TtpxMW13arsJV9CC_Q-d1WM
+');

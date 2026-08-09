@@ -1,0 +1,403 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Genjutsu Feed API Docs</title>
+  <meta name="description" content="Public documentation for the Genjutsu Feed API." />
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+    <nav class="navbar">
+    <div class="container navbar-inner">
+      <div class="navbar-brand">
+        <img src="logo.png" alt="Genjutsu logo" class="navbar-logo" />
+        <span>Genjutsu API</span>
+      </div>
+      <a href="https://genjutsu.xyz" target="_blank" rel="noopener noreferrer" class="navbar-link">Visit Genjutsu ↗</a>
+      <button class="theme-toggle" id="theme-toggle" aria-label="Toggle dark mode">
+        <svg class="theme-icon moon-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+        <svg class="theme-icon sun-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+      </button>
+    </div>
+  </nav>
+  <header class="hero">
+    <div class="container">
+      <p class="kicker">Public API</p>
+      <h1>Genjutsu Feed API</h1>
+      <p class="subtitle">Fetch public 24-hour feed posts for your own website or app in real time.</p>
+      <div class="endpoint">
+        <span class="method">GET</span>
+        <code>/api/genjutsu-feed</code>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="content">
+    <section class="card">
+      <h2>Overview</h2>
+      <p>This API returns the same public post feed style used in Genjutsu, including likes, comments, views, media, code, and readme-format metadata.</p>
+      <ul>
+        <li>Public-only feed data</li>
+        <li>24-hour retention window</li>
+        <li>Pagination via <code>page</code> and <code>limit</code></li>
+        <li>Live polling support via <code>since</code></li>
+      </ul>
+    </section>
+
+    <section class="card">
+      <h2>Beginner Setup (Step by Step)</h2>
+      <ol>
+        <li>Choose your base URL: <code>https://genjutsu.xyz</code></li>
+        <li>Build the endpoint URL: <code>/api/genjutsu-feed?page=1&amp;limit=10</code></li>
+        <li>Send a <code>GET</code> request using browser fetch, backend code, or cURL.</li>
+        <li>Check <code>ok === true</code> before reading <code>posts</code>.</li>
+        <li>Render each post card using <code>content</code>, <code>media_url</code>, counts, and <code>profile</code>.</li>
+        <li>For live updates, save <code>meta.server_time</code> and send it back as <code>since</code>. It is bucketed for shared cache efficiency.</li>
+      </ol>
+      <p>If your site is static HTML/CSS/JS, you can use fetch directly in the browser. If your site is server-rendered, call this API on your backend and render from there.</p>
+    </section>
+
+    <section class="card">
+      <h2>Query Parameters</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Param</th>
+            <th>Type</th>
+            <th>Default</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>page</code></td>
+            <td>number</td>
+            <td>1</td>
+            <td>Page number (1-based).</td>
+          </tr>
+          <tr>
+            <td><code>limit</code></td>
+            <td>number</td>
+            <td>10</td>
+            <td>Posts per page (max 50).</td>
+          </tr>
+          <tr>
+            <td><code>since</code></td>
+            <td>ISO string</td>
+            <td>null</td>
+            <td>Only include posts newer than this timestamp (still constrained to 24h).</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>Validation rules:</p>
+      <ul>
+        <li><code>page</code> must be a positive integer.</li>
+        <li><code>limit</code> must be a positive integer and is capped at <code>50</code>.</li>
+        <li><code>since</code> must be a valid ISO timestamp like <code>2026-04-28T10:30:00.000Z</code>.</li>
+        <li>For best cache reuse, pass back <code>meta.server_time</code> instead of generating your own fresh timestamp.</li>
+      </ul>
+    </section>
+
+    <section class="card">
+      <h2>Response Shape</h2>
+      <pre><code>{
+  "ok": true,
+  "meta": {
+    "page": 1,
+    "limit": 10,
+    "has_more": true,
+    "since": null,
+    "window_hours": 24,
+    "server_time": "2026-04-28T10:35:00.000Z",
+    "poll_bucket_seconds": 60
+  },
+  "posts": [
+    {
+      "id": "uuid",
+      "content": "post text",
+      "code": "const x = 1;",
+      "code_language": "javascript",
+      "media_url": "https://...",
+      "tags": ["react", "supabase"],
+      "created_at": "2026-04-28T09:00:00.000Z",
+      "edited_at": null,
+      "user_id": "uuid",
+      "is_readme": false,
+      "views_count": 13,
+      "likes_count": 5,
+      "comments_count": 2,
+      "profile": {
+        "username": "ovi",
+        "display_name": "Ovi",
+        "avatar_url": "https://..."
+      }
+    }
+  ]
+}</code></pre>
+    </section>
+
+    <section class="card">
+      <h2>Post Field Guide</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Field</th>
+            <th>Type</th>
+            <th>How To Use</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>id</code></td>
+            <td>string</td>
+            <td>Unique key for rendering list items.</td>
+          </tr>
+          <tr>
+            <td><code>content</code></td>
+            <td>string | null</td>
+            <td>Main post text.</td>
+          </tr>
+          <tr>
+            <td><code>code</code></td>
+            <td>string | null</td>
+            <td>Code snippet body (if post contains code).</td>
+          </tr>
+          <tr>
+            <td><code>code_language</code></td>
+            <td>string | null</td>
+            <td>Syntax language label for code highlighting.</td>
+          </tr>
+          <tr>
+            <td><code>media_url</code></td>
+            <td>string | null</td>
+            <td>Image/media URL. Show only when present.</td>
+          </tr>
+          <tr>
+            <td><code>tags</code></td>
+            <td>string[]</td>
+            <td>Topic chips/labels.</td>
+          </tr>
+          <tr>
+            <td><code>created_at</code></td>
+            <td>ISO string</td>
+            <td>Post publish time.</td>
+          </tr>
+          <tr>
+            <td><code>edited_at</code></td>
+            <td>ISO string | null</td>
+            <td>Edit timestamp if post was updated.</td>
+          </tr>
+          <tr>
+            <td><code>is_readme</code></td>
+            <td>boolean</td>
+            <td>If <code>true</code>, render in README-style post layout.</td>
+          </tr>
+          <tr>
+            <td><code>views_count</code></td>
+            <td>number</td>
+            <td>Total views count.</td>
+          </tr>
+          <tr>
+            <td><code>likes_count</code></td>
+            <td>number</td>
+            <td>Total likes count.</td>
+          </tr>
+          <tr>
+            <td><code>comments_count</code></td>
+            <td>number</td>
+            <td>Total comments count.</td>
+          </tr>
+          <tr>
+            <td><code>profile.username</code></td>
+            <td>string | null</td>
+            <td>Author handle.</td>
+          </tr>
+          <tr>
+            <td><code>profile.display_name</code></td>
+            <td>string | null</td>
+            <td>Author display name.</td>
+          </tr>
+          <tr>
+            <td><code>profile.avatar_url</code></td>
+            <td>string | null</td>
+            <td>Author avatar image URL.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="card">
+      <h2>Errors & Status Codes</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Status</th>
+            <th>When</th>
+            <th>Example</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>200</code></td>
+            <td>Successful request.</td>
+            <td><code>{ "ok": true, ... }</code></td>
+          </tr>
+          <tr>
+            <td><code>400</code></td>
+            <td>Invalid query parameter (for example invalid <code>since</code> format).</td>
+            <td><code>{ "ok": false, "error": "Invalid `since` parameter..." }</code></td>
+          </tr>
+          <tr>
+            <td><code>405</code></td>
+            <td>Method not allowed (only <code>GET</code> / <code>OPTIONS</code> allowed).</td>
+            <td><code>{ "ok": false, "error": "Method Not Allowed" }</code></td>
+          </tr>
+          <tr>
+            <td><code>500</code></td>
+            <td>Unexpected internal server error.</td>
+            <td><code>{ "ok": false, "error": "Unexpected server error" }</code></td>
+          </tr>
+          <tr>
+            <td><code>502</code></td>
+            <td>Upstream data fetch issue while building feed or counts.</td>
+            <td><code>{ "ok": false, "error": "Failed to fetch posts" }</code></td>
+          </tr>
+        </tbody>
+      </table>
+      <p>All error responses follow a JSON shape with <code>ok: false</code> and an <code>error</code> message.</p>
+    </section>
+
+    <section class="card">
+      <h2>Caching Behavior</h2>
+      <p>The public API is tuned for shared edge caching. Common feed pages can stay cached a bit longer, while <code>since</code>-based refreshes use shorter cache windows.</p>
+      <ul>
+        <li>Reuse <code>meta.server_time</code> as your next <code>since</code> value.</li>
+        <li>Avoid generating a brand new timestamp on every poll.</li>
+        <li>Use small limits for live refreshes whenever possible.</li>
+      </ul>
+    </section>
+
+    <section class="card">
+      <h2>Rate Limits & Fair Use</h2>
+      <p>There is no dedicated API key or public per-user quota yet, but consumers should use reasonable polling and caching behavior.</p>
+      <ul>
+        <li>Recommended polling interval for live updates: every <strong>60 seconds</strong> (matching the server bucket).</li>
+        <li>Avoid high-frequency loops (for example sub-second polling).</li>
+        <li>Use <code>since</code> to fetch only new posts instead of repeatedly requesting large pages.</li>
+        <li>Respect caching headers returned by the endpoint when possible.</li>
+      </ul>
+      <p>Future versions may enforce hard rate limits and API key-based access controls.</p>
+    </section>
+
+    <section class="card">
+      <h2>Quick Start</h2>
+      <pre><code>const res = await fetch("https://genjutsu.xyz/api/genjutsu-feed?limit=10&page=1");
+const data = await res.json();
+console.log(data.posts);</code></pre>
+    </section>
+
+    <section class="card">
+      <h2>cURL Example</h2>
+      <pre><code>curl "https://genjutsu.xyz/api/genjutsu-feed?page=1&amp;limit=10"</code></pre>
+    </section>
+
+    <section class="card">
+      <h2>Frontend Example (Render Cards)</h2>
+      <pre><code>&lt;div id="feed"&gt;&lt;/div&gt;
+
+&lt;script&gt;
+  async function loadFeed() {
+    const res = await fetch("https://genjutsu.xyz/api/genjutsu-feed?page=1&amp;limit=10");
+    const data = await res.json();
+    if (!data.ok) return;
+
+    const root = document.getElementById("feed");
+    root.innerHTML = data.posts.map((post) =&gt; `
+      &lt;article&gt;
+        &lt;h3&gt;@${post.profile?.username || "unknown"}&lt;/h3&gt;
+        &lt;p&gt;${post.content || ""}&lt;/p&gt;
+        ${post.media_url ? `&lt;img src="${post.media_url}" alt="post media" /&gt;` : ""}
+        &lt;small&gt;❤ ${post.likes_count} · 💬 ${post.comments_count} · 👁 ${post.views_count}&lt;/small&gt;
+      &lt;/article&gt;
+    `).join("");
+  }
+
+  loadFeed();
+&lt;/script&gt;</code></pre>
+    </section>
+
+    <section class="card">
+      <h2>Live Feed Polling Example</h2>
+      <pre><code>let since = new Date().toISOString();
+
+async function pollFeed() {
+  const url = new URL("https://genjutsu.xyz/api/genjutsu-feed");
+  url.searchParams.set("since", since);
+  url.searchParams.set("limit", "20");
+
+  const res = await fetch(url.toString());
+  const data = await res.json();
+  if (!data.ok) return;
+
+  // newest first from API: reverse if you append top-down
+  for (const post of data.posts.reverse()) {
+    console.log("new post", post.id, post.content);
+  }
+
+  since = data.meta.server_time;
+}
+
+setInterval(pollFeed, 10000);</code></pre>
+      <p>Use <code>since</code> polling for efficient updates. It avoids re-fetching older posts each time.</p>
+    </section>
+
+    <section class="card">
+      <h2>Common Mistakes</h2>
+      <ul>
+        <li>Passing invalid <code>since</code> format (must be ISO timestamp).</li>
+        <li>Requesting <code>limit</code> over <code>50</code> and expecting more than the cap.</li>
+        <li>Assuming this endpoint returns data older than 24 hours.</li>
+        <li>Not checking <code>ok</code> before reading <code>posts</code>.</li>
+        <li>Rendering <code>media_url</code> without null checks.</li>
+      </ul>
+    </section>
+
+    <section class="card">
+      <h2>Deployment Checklist</h2>
+      <ul>
+        <li>Deploy branch that includes <code>/api/genjutsu-feed</code> and <code>/api-docs</code>.</li>
+        <li>Open docs via <code>http(s)</code> URL, not <code>file://</code>.</li>
+        <li>Test from mobile and desktop.</li>
+        <li>Add caching/polling control on your client app.</li>
+        <li>Gracefully handle non-200 responses.</li>
+      </ul>
+    </section>
+
+    <section class="card">
+      <h2>Try It</h2>
+      <form id="playground-form" class="playground-controls">
+        <label>Base URL
+          <input id="base-url" type="url" value="https://genjutsu.xyz" />
+        </label>
+        <label>Page
+          <input id="page" type="number" min="1" value="1" />
+        </label>
+        <label>Limit
+          <input id="limit" type="number" min="1" max="50" value="10" />
+        </label>
+        <label>Since (optional)
+          <input id="since" type="text" placeholder="2026-04-28T10:30:00.000Z" />
+        </label>
+        <button type="submit">Fetch</button>
+      </form>
+      <p id="request-url" class="hint"></p>
+      <pre id="response-box"><code>Run a request to preview JSON response here.</code></pre>
+    </section>
+      </div>
+  </main>
+
+  <script src="./script.js"></script>
+</body>
+</html>

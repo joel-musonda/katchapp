@@ -1,0 +1,36 @@
+// ⚠️  WARNING: This file was originally auto-generated but has been MANUALLY
+// customized with a deferred-init Proxy pattern for runtime config loading.
+// Do NOT overwrite with the default Supabase CLI output — it will break the app.
+import { createClient } from '@supabase/supabase-js';
+import type { Database } from './types';
+import { getConfig } from "@/lib/config";
+
+// Import the supabase client like this:
+// import { supabase } from "@/integrations/supabase/client";
+
+// Real client initialization
+let clientInstance: ReturnType<typeof createClient<Database>> | null = null;
+
+const getClient = () => {
+  if (!clientInstance) {
+    const config = getConfig();
+    clientInstance = createClient<Database>(config.VITE_SUPABASE_URL, config.VITE_SUPABASE_PUBLISHABLE_KEY, {
+      auth: {
+        storage: localStorage,
+        persistSession: true,
+        autoRefreshToken: true,
+      }
+    });
+  }
+  return clientInstance;
+};
+
+export const supabase = new Proxy({} as any, {
+  get(target, prop) {
+    // Return properties from the client instance, but only after it's been initialized.
+    // Since we wrap the render call in loadConfig().then(), the client will be ready
+    // when any component or hook actually tries to use it.
+    const client = getClient();
+    return (client as any)[prop];
+  }
+}) as unknown as ReturnType<typeof createClient<Database>>;
