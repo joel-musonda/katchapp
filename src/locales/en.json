@@ -44,7 +44,7 @@
     "gameHouse": "Game House"
   },
   "sidebar": {
-    "whoToFollow": "Who to follow",
+    "whoToFollow": "Suggested Accounts",
     "following": "Following",
     "follow": "Follow",
     "noSuggestions": "No suggestions found",
@@ -54,7 +54,7 @@
     "about": "About",
     "terms": "Terms",
     "privacy": "Privacy",
-    "copyright": "© 2026 Genjutsu. Everything vanishes.",
+    "copyright": "© 2026 KatchApp. All rights reserved.",
     "reportBug": "Report Bug",
     "requestFeature": "Request Feature"
   },

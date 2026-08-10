@@ -35,23 +35,6 @@ interface PostCardProps {
   }) => void;
 }
 
-function getTimeRemaining(dateStr: string): string {
-  const created = new Date(dateStr);
-  const expires = new Date(created.getTime() + 24 * 60 * 60 * 1000);
-  const now = getNow();
-  const diff = expires.getTime() - now.getTime();
-
-  if (diff <= 0) return "Expired";
-
-  const hours = Math.floor(diff / (1000 * 60 * 60));
-  const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-
-  if (hours > 0) {
-    return `${hours}h ${minutes}m left`;
-  }
-  return `${minutes}m left`;
-}
-
 function timeAgo(dateStr: string): string {
   const diff = getNow().getTime() - new Date(dateStr).getTime();
   const mins = Math.floor(diff / 60000);
@@ -76,7 +59,6 @@ const PostCard = memo(({ post, onLike, onBookmark, onDelete, onPostEdited }: Pos
   const articleRef = useRef<HTMLElement | null>(null);
   const [viewCount, setViewCount] = useState<number>(post.views_count || 0);
 
-  // Translation States
   const [translatedContent, setTranslatedContent] = useState<string | null>(null);
   const [isTranslating, setIsTranslating] = useState(false);
   const [isShowingTranslation, setIsShowingTranslation] = useState(false);
@@ -92,13 +74,7 @@ const PostCard = memo(({ post, onLike, onBookmark, onDelete, onPostEdited }: Pos
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [showMenu]);
 
-  const initials = post.profiles?.display_name
-    ?.split(" ")
-    .map((n) => n[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2) || "??";
-
+  const initials = post.profiles?.display_name?.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2) || "??";
   const isOwner = user?.id === post.user_id;
 
   const [isTextExpanded, setIsTextExpanded] = useState(false);
@@ -109,9 +85,7 @@ const PostCard = memo(({ post, onLike, onBookmark, onDelete, onPostEdited }: Pos
 
   useEffect(() => {
     return () => {
-      if (likeAnimationTimeoutRef.current !== null) {
-        window.clearTimeout(likeAnimationTimeoutRef.current);
-      }
+      if (likeAnimationTimeoutRef.current !== null) window.clearTimeout(likeAnimationTimeoutRef.current);
     };
   }, []);
 
@@ -129,83 +103,43 @@ const PostCard = memo(({ post, onLike, onBookmark, onDelete, onPostEdited }: Pos
         if (!hit) return;
 
         void recordView(post.id, "impression").then((count) => {
-          if (typeof count === "number") {
-            setViewCount((prev) => Math.max(prev, count));
-          }
+          if (typeof count === "number") setViewCount((prev) => Math.max(prev, count));
         });
 
         observer?.disconnect();
         observer = null;
       },
-      { threshold: [0.5] },
+      { threshold: [0.5] }
     );
 
     observer.observe(node);
-
-    return () => {
-      observer?.disconnect();
-    };
+    return () => { observer?.disconnect(); };
   }, [post.id, recordView]);
 
-  // Content Selection Logic
   const isAlreadyEnglish = useMemo(() => {
     const text = post.content.trim();
     if (!text) return true;
-    
-    // eslint-disable-next-line no-misleading-character-class
-    const hasOtherScripts = /[\u0400-\u04FF\u0600-\u06FF\u4E00-\u9FFF\u3040-\u30FF\uAC00-\uD7AF\u0980-\u09FF\u0900-\u097F\u0E00-\u0E7F\u0370-\u03FF\u0590-\u05FF\u0B80-\u0BFF\u0A80-\u0AFF\u0C00-\u0C7F]/.test(text);
-    if (hasOtherScripts) return false;
-    
-    const commonEnglishWords = /\b(the|and|is|it|you|that|in|was|for|on|are|with|as|I|be|at|have|from|this|but|his|by|they|we|say|her|she|or|an|will|my|one|all|would|there|their|what|so|up|out|if|about|who|get|which|go|me)\b/i;
-    
-    // eslint-disable-next-line no-control-regex
-    return commonEnglishWords.test(text) || (text.length < 30 && !/[^\x00-\x7F]/.test(text));
+    const hasOtherScripts = /[\u0400-\u04FF\u0600-\u06FF\u4E00-\u9FFF]/.test(text);
+    return !hasOtherScripts;
   }, [post.content]);
 
   const rawContent = isShowingTranslation && translatedContent ? translatedContent : post.content;
   const isLongPost = rawContent.length > 300;
   const displayContent = isLongPost && !isTextExpanded ? rawContent.slice(0, 300) + '…' : rawContent;
 
-  const qnaMatch = useMemo(() => {
-    if (post.is_readme) return null;
-    const match = rawContent.match(/^Q:\s*"([\s\S]+?)"\s*\nsent with katchapp QnA\s*\n\s*\n\s*A:\s*([\s\S]*)$/);
-    return match;
-  }, [rawContent, post.is_readme]);
-
-  const displayAnswer = useMemo(() => {
-    if (!qnaMatch) return "";
-    const answer = qnaMatch[2];
-    if (isLongPost && !isTextExpanded) {
-      const questionLen = qnaMatch[1].length + 50;
-      const maxAnswerLen = Math.max(50, 300 - questionLen);
-      if (answer.length > maxAnswerLen) {
-        return answer.slice(0, maxAnswerLen) + "…";
-      }
-    }
-    return answer;
-  }, [qnaMatch, isLongPost, isTextExpanded]);
-
   const codeLines = post.code?.split('\n') || [];
   const isLongCode = codeLines.length > 10;
   const truncatedCode = isLongCode ? codeLines.slice(0, 10).join('\n') + '\n…' : post.code;
 
-  // Translation Logic
   const handleTranslate = async () => {
     if (isShowingTranslation) {
       setIsShowingTranslation(false);
       return;
     }
-
     if (translatedContent) {
       setIsShowingTranslation(true);
       return;
     }
-
-    if (isAlreadyEnglish) {
-      toast.info("This post is already in English.");
-      return;
-    }
-
     try {
       setIsTranslating(true);
       const apiUrl = getConfig().VITE_LANG_SERVICE;
@@ -214,14 +148,12 @@ const PostCard = memo(({ post, onLike, onBookmark, onDelete, onPostEdited }: Pos
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: post.content, target: 'en' })
       });
-
       if (!response.ok) throw new Error();
-
       const data = await response.json();
       setTranslatedContent(data.translatedText);
       setIsShowingTranslation(true);
       toast.success("Translated to English");
-    } catch (error) {
+    } catch {
       toast.error("Could not translate post.");
     } finally {
       setIsTranslating(false);
@@ -231,103 +163,71 @@ const PostCard = memo(({ post, onLike, onBookmark, onDelete, onPostEdited }: Pos
   const handleLikeClick = () => {
     const willLike = !post.user_liked;
     onLike(post.id, post.user_liked);
-
     if (!willLike) return;
 
     setLikeBurstId((id) => id + 1);
     setIsLikeAnimating(true);
-
-    if (likeAnimationTimeoutRef.current !== null) {
-      window.clearTimeout(likeAnimationTimeoutRef.current);
-    }
-
-    likeAnimationTimeoutRef.current = window.setTimeout(() => {
-      setIsLikeAnimating(false);
-    }, 520);
+    if (likeAnimationTimeoutRef.current !== null) window.clearTimeout(likeAnimationTimeoutRef.current);
+    likeAnimationTimeoutRef.current = window.setTimeout(() => setIsLikeAnimating(false), 520);
   };
 
   const handleShare = async () => {
     const url = `${window.location.origin}/post/${post.id}`;
     const result = await shareWithFallback({ url });
-    if (result === "copied") {
-      toast.success("Link copied to clipboard!");
-    } else if (result === "failed") {
-      toast.error("Couldn't share this post right now.");
-    }
+    if (result === "copied") toast.success("Link copied!");
   };
 
   return (
-    <motion.article
-      ref={articleRef}
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      whileHover={{ y: -2, scale: 1.005 }}
-      transition={{ type: "spring", stiffness: 300, damping: 20 }}
-      className="bg-black/[0.02] dark:bg-zinc-900/40 border border-black/[0.06] rounded-2xl p-5 mb-4 shadow-xs transition-colors"
-    >
-      <div className="flex gap-3">
+    <article ref={articleRef} className="bg-white dark:bg-black border-b border-zinc-200/80 dark:border-zinc-800/80 p-4 transition-colors hover:bg-zinc-50/60 dark:hover:bg-zinc-950/40">
+      <div className="flex gap-3.5">
         <button
           onClick={() => navigate(`/u/${post.profiles?.username}`)}
-          className="w-10 h-10 rounded-full bg-black/5 dark:bg-white/10 flex items-center justify-center font-bold text-sm shrink-0 overflow-hidden hover:opacity-80 transition-opacity text-black dark:text-white"
+          className="w-10 h-10 rounded-full bg-zinc-200 dark:bg-zinc-800 flex items-center justify-center font-semibold text-sm shrink-0 overflow-hidden hover:opacity-90 transition-opacity text-zinc-900 dark:text-zinc-100 shadow-sm"
         >
           {post.profiles?.avatar_url ? (
             <img src={post.profiles.avatar_url} alt={post.profiles.username} className="w-full h-full object-cover" loading="lazy" />
           ) : initials}
         </button>
+
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-2">
-            <div className="flex flex-col sm:flex-row sm:items-center min-w-0 overflow-hidden">
+            <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
               <button
                 onClick={() => navigate(`/u/${post.profiles?.username}`)}
-                className="flex items-center gap-1 group text-left min-w-0 overflow-hidden"
+                className="font-semibold text-[15px] tracking-tight text-zinc-900 dark:text-zinc-100 hover:underline truncate"
               >
-                <span className="font-bold text-sm text-black dark:text-white group-hover:underline truncate shrink-0 max-w-[140px] xs:max-w-[180px] sm:max-w-[220px]">{post.profiles?.display_name || "Unknown"}</span>
-                <span className="text-black/50 dark:text-white/50 text-sm truncate shrink ml-1">@{post.profiles?.username || "?"}</span>
-                <span className="text-black/40 dark:text-white/40 text-xs shrink-0 whitespace-nowrap ml-1">· {timeAgo(post.created_at)}</span>
-                {post.edited_at && (
-                  <span className="text-black/40 dark:text-white/40 text-[10px] shrink-0 whitespace-nowrap ml-1">(edited)</span>
-                )}
+                {post.profiles?.display_name || "Unknown"}
               </button>
-              <div className="flex items-center gap-2 sm:ml-2 mt-0.5 sm:mt-0">
-                <span className="text-black/70 dark:text-white/70 text-[10px] font-bold shrink-0 whitespace-nowrap">
-                  [{getTimeRemaining(post.created_at)}]
-                </span>
-                <span className="shrink-0 inline-flex items-center gap-1 text-black/50 dark:text-white/50 text-[10px] font-medium" title="Views">
-                  <Eye size={12} />
-                  {viewCount}
-                </span>
-              </div>
+              <span className="text-zinc-500 dark:text-zinc-400 text-sm font-normal truncate">@{post.profiles?.username || "?"}</span>
+              <span className="text-zinc-400 dark:text-zinc-600 text-xs font-light">·</span>
+              <span className="text-zinc-500 dark:text-zinc-400 text-xs font-normal">{timeAgo(post.created_at)}</span>
+              {post.edited_at && <span className="text-zinc-400 dark:text-zinc-500 text-[10px] font-medium">(edited)</span>}
             </div>
+
             {isOwner && (
               <div className="relative" ref={menuRef}>
                 <button
                   type="button"
-                  aria-label="Open post menu"
                   onClick={() => setShowMenu(!showMenu)}
-                  className="p-1.5 rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition-colors text-black/60 dark:text-white/60"
+                  className="p-1.5 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 transition-colors"
                 >
                   <MoreHorizontal size={16} />
                 </button>
                 {showMenu && (
-                  <div className="absolute right-0 top-8 bg-white dark:bg-zinc-900 p-1.5 z-50 min-w-[120px] shadow-2xl rounded-2xl border border-black/5 animate-in fade-in slide-in-from-top-2">
+                  <div className="absolute right-0 top-8 bg-white dark:bg-zinc-900 p-1.5 z-50 min-w-[120px] shadow-xl rounded-2xl border border-zinc-200 dark:border-zinc-800">
                     <button
                       type="button"
-                      onClick={() => {
-                        setIsEditDialogOpen(true);
-                        setShowMenu(false);
-                      }}
-                      className="flex items-center gap-2 w-full px-3 py-2 text-xs font-medium hover:bg-black/5 dark:hover:bg-white/10 rounded-xl transition-colors text-black dark:text-white"
+                      onClick={() => { setIsEditDialogOpen(true); setShowMenu(false); }}
+                      className="flex items-center gap-2 w-full px-3 py-2 text-xs font-medium hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl text-zinc-900 dark:text-zinc-100 transition-colors"
                     >
-                      <Pencil size={14} />
-                      Edit
+                      <Pencil size={14} /> Edit
                     </button>
                     <button
                       type="button"
                       onClick={() => { onDelete?.(post.id); setShowMenu(false); }}
-                      className="flex items-center gap-2 w-full px-3 py-2 text-xs font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-xl transition-colors"
+                      className="flex items-center gap-2 w-full px-3 py-2 text-xs font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-xl transition-colors"
                     >
-                      <Trash2 size={14} />
-                      Delete
+                      <Trash2 size={14} /> Delete
                     </button>
                   </div>
                 )}
@@ -346,59 +246,14 @@ const PostCard = memo(({ post, onLike, onBookmark, onDelete, onPostEdited }: Pos
 
           {post.is_readme ? (
             <Suspense fallback={<div className="mt-3 p-4 flex justify-center"><FrogLoader size={20} /></div>}>
-              <MarkdownContent
-                content={displayContent}
-                isLongPost={isLongPost}
-                isTextExpanded={isTextExpanded}
-                onToggleExpand={() => setIsTextExpanded(!isTextExpanded)}
-              />
+              <MarkdownContent content={displayContent} isLongPost={isLongPost} isTextExpanded={isTextExpanded} onToggleExpand={() => setIsTextExpanded(!isTextExpanded)} />
             </Suspense>
-          ) : qnaMatch ? (
-            <div className="mt-2 flex flex-col gap-3">
-              <div className="bg-black/[0.03] dark:bg-zinc-900/60 border border-black/[0.06] dark:border-white/10 rounded-2xl p-4 shadow-xs relative overflow-hidden">
-                <div className="text-[10px] font-black uppercase tracking-wider text-black/70 dark:text-white/70 mb-1">
-                  Question (Anonymous)
-                </div>
-                <p className="text-sm font-bold italic leading-relaxed text-black dark:text-white whitespace-pre-wrap break-words">
-                  "{qnaMatch[1]}"
-                </p>
-                <div className="text-[9px] font-semibold text-black/40 dark:text-white/40 mt-2 uppercase tracking-widest">
-                  sent with katchapp QnA
-                </div>
-              </div>
-
-              <div className="text-sm leading-relaxed whitespace-pre-wrap break-words text-black/90 dark:text-white/95">
-                <div className="text-[10px] font-black uppercase tracking-wider text-black/50 dark:text-white/50 mb-1">
-                  Answer
-                </div>
-                <p>
-                  {linkify(displayAnswer)}
-                </p>
-
-                {isLongPost && (
-                  <button
-                    type="button"
-                    onClick={() => setIsTextExpanded(!isTextExpanded)}
-                    className="text-black dark:text-white font-semibold mt-1 hover:underline focus:outline-none text-xs"
-                  >
-                    {isTextExpanded ? 'See Less' : 'See More'}
-                  </button>
-                )}
-              </div>
-            </div>
           ) : (
-            <div className="mt-2 text-sm leading-relaxed whitespace-pre-wrap break-words text-black/90 dark:text-white/95">
-              <p>
-                {linkify(displayContent)}
-              </p>
-
+            <div className="mt-1.5 text-[15px] leading-relaxed whitespace-pre-wrap break-words text-zinc-900 dark:text-zinc-100 font-normal">
+              <p>{linkify(displayContent)}</p>
               {isLongPost && (
-                <button
-                  type="button"
-                  onClick={() => setIsTextExpanded(!isTextExpanded)}
-                  className="text-black dark:text-white font-semibold mt-1 hover:underline focus:outline-none text-xs"
-                >
-                  {isTextExpanded ? 'See Less' : 'See More'}
+                <button type="button" onClick={() => setIsTextExpanded(!isTextExpanded)} className="text-sky-500 font-medium mt-1.5 hover:underline text-xs inline-block">
+                  {isTextExpanded ? 'Show Less' : 'Show More'}
                 </button>
               )}
             </div>
@@ -406,202 +261,98 @@ const PostCard = memo(({ post, onLike, onBookmark, onDelete, onPostEdited }: Pos
 
           {post.media_url && (
             <>
-              <motion.button
-                whileHover={{ scale: 1.01 }}
-                whileTap={{ scale: 0.99 }}
-                type="button"
+              <div
                 onClick={() => setIsImagePreviewOpen(true)}
-                className="mt-3 w-full rounded-2xl border border-black/[0.08] dark:border-white/10 overflow-hidden bg-black/5 dark:bg-white/5 cursor-pointer hover:opacity-95 transition-opacity block"
+                className="mt-3 rounded-2xl border border-zinc-200 dark:border-zinc-800 overflow-hidden bg-zinc-100 dark:bg-zinc-900 cursor-pointer block shadow-sm"
               >
-                <DataSaverImage
-                  src={post.media_url}
-                  alt="Post content"
-                  className="w-full h-auto max-h-[500px] object-contain mx-auto"
-                  loading="lazy"
-                />
-              </motion.button>
-              <ImagePreviewDialog
-                src={post.media_url}
-                isOpen={isImagePreviewOpen}
-                onOpenChange={setIsImagePreviewOpen}
-                alt="Post content"
-              />
+                <DataSaverImage src={post.media_url} alt="Post content" className="w-full h-auto max-h-[500px] object-cover mx-auto" loading="lazy" />
+              </div>
+              <ImagePreviewDialog src={post.media_url} isOpen={isImagePreviewOpen} onOpenChange={setIsImagePreviewOpen} alt="Post content" />
             </>
           )}
 
           {post.code && (
             <CodeBlockWithPreview
-                code={post.code}
-                language={post.code_language || "javascript"}
-                isExpanded={isCodeExpanded}
-                onToggleExpand={() => setIsCodeExpanded(!isCodeExpanded)}
-                isLongCode={isLongCode}
-                truncatedCode={truncatedCode}
-                isMarkdown={false}
+              code={post.code}
+              language={post.code_language || "javascript"}
+              isExpanded={isCodeExpanded}
+              onToggleExpand={() => setIsCodeExpanded(!isCodeExpanded)}
+              isLongCode={isLongCode}
+              truncatedCode={truncatedCode}
+              isMarkdown={false}
             />
           )}
 
           {post.tags.length > 0 && (
-            <div className="flex flex-wrap gap-2 mt-3">
+            <div className="flex flex-wrap gap-1.5 mt-3">
               {post.tags.map((tag) => (
                 <span
                   key={tag}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    navigate(`/search?q=${encodeURIComponent(tag.startsWith('#') ? tag : '#' + tag)}`);
-                  }}
-                  className="inline-flex items-center gap-1 text-xs font-mono font-medium bg-black/[0.04] dark:bg-white/5 px-3 py-1 rounded-full border border-black/[0.06] dark:border-white/10 cursor-pointer hover:bg-black/[0.08] dark:hover:bg-white/10 transition-all active:scale-95 text-black/80 dark:text-white/80"
+                  onClick={(e) => { e.stopPropagation(); navigate(`/search?q=${encodeURIComponent('#' + tag)}`); }}
+                  className="text-xs font-medium text-sky-500 hover:underline cursor-pointer"
                 >
-                  <Hash size={10} />
-                  {tag}
+                  #{tag}
                 </span>
               ))}
             </div>
           )}
 
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 sm:gap-x-6 mt-4 pt-3 border-t border-black/[0.06] dark:border-white/10 text-black/60 dark:text-white/60">
-            <div className="shrink-0 inline-flex items-center gap-1.5">
-              <motion.button
-                type="button"
-                onClick={handleLikeClick}
-                className={`p-1.5 rounded-full transition-colors ${post.user_liked ? "text-red-500 bg-red-500/10" : "hover:bg-black/5 dark:hover:bg-white/10 hover:text-red-500"}`}
-                title={post.user_liked ? "Unlike post" : "Like post"}
-                aria-label={post.user_liked ? "Unlike post" : "Like post"}
-                whileHover={{ scale: 1.15 }}
-                whileTap={{ scale: 0.92 }}
-                animate={isLikeAnimating ? { scale: [1, 1.18, 0.96, 1] } : { scale: 1 }}
-                transition={{ duration: 0.45, ease: "easeOut" }}
-              >
-                <motion.span
-                  animate={isLikeAnimating ? { rotate: [0, -14, 12, -8, 0] } : { rotate: 0 }}
-                  transition={{ duration: 0.5, ease: "easeOut" }}
-                  className="inline-flex"
-                >
-                  <Heart size={15} fill={post.user_liked ? "currentColor" : "none"} className={post.user_liked ? "text-red-500" : ""} />
-                </motion.span>
+          {/* Twitter-style action footer bar */}
+          <div className="flex items-center justify-between mt-3 text-zinc-500 dark:text-zinc-400 max-w-md pt-1">
+            <Link to={`/post/${post.id}`} className="flex items-center gap-1.5 text-xs font-medium hover:text-sky-500 transition-colors group">
+              <div className="p-2 rounded-full group-hover:bg-sky-500/10 transition-colors"><MessageSquare size={16} /></div>
+              <span>{post.comments_count}</span>
+            </Link>
 
-                <AnimatePresence>
-                  {isLikeAnimating && (
-                    <motion.span
-                      key={`like-burst-${likeBurstId}`}
-                      initial={{ opacity: 1 }}
-                      animate={{ opacity: 0 }}
-                      exit={{ opacity: 0 }}
-                      transition={{ duration: 0.45 }}
-                      className="pointer-events-none absolute inset-0"
-                    >
-                      {[
-                        { x: -18, y: -20, delay: 0.0 },
-                        { x: 0, y: -26, delay: 0.03 },
-                        { x: 18, y: -20, delay: 0.06 },
-                        { x: -22, y: -4, delay: 0.09 },
-                        { x: 22, y: -4, delay: 0.12 },
-                      ].map((particle, idx) => (
-                        <motion.span
-                          key={`${likeBurstId}-${idx}`}
-                          initial={{ opacity: 0, x: 0, y: 0, scale: 0.5 }}
-                          animate={{ opacity: [0, 1, 0], x: particle.x, y: particle.y, scale: [0.5, 1, 0.6] }}
-                          transition={{ duration: 0.45, ease: "easeOut", delay: particle.delay }}
-                          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-red-500"
-                        >
-                          <Heart size={10} fill="currentColor" />
-                        </motion.span>
-                      ))}
-                    </motion.span>
-                  )}
-                </AnimatePresence>
-              </motion.button>
-              <button
-                type="button"
-                onClick={() => setIsLikesDialogOpen(true)}
-                className={`text-xs font-medium px-1.5 py-0.5 rounded-full transition-colors ${post.user_liked ? "text-red-500 font-bold" : "hover:text-black dark:hover:text-white"}`}
-                title="View users who liked this post"
-                aria-label="View users who liked this post"
-              >
-                {post.likes_count}
-              </button>
+            <button
+              type="button"
+              onClick={handleLikeClick}
+              className={`flex items-center gap-1.5 text-xs font-medium transition-colors group ${post.user_liked ? "text-red-500" : "hover:text-red-500"}`}
+            >
+              <div className="p-2 rounded-full group-hover:bg-red-500/10 transition-colors">
+                <Heart size={16} fill={post.user_liked ? "currentColor" : "none"} />
+              </div>
+              <span onClick={(e) => { e.stopPropagation(); setIsLikesDialogOpen(true); }}>{post.likes_count}</span>
+            </button>
+
+            <div className="flex items-center gap-1.5 text-xs font-medium">
+              <div className="p-2"><Eye size={16} /></div>
+              <span>{viewCount}</span>
             </div>
 
-            <motion.div whileHover={{ scale: 1.15 }} whileTap={{ scale: 0.85 }} className="shrink-0 flex items-center">
-              <Link
-                to={`/post/${post.id}`}
-                className="flex items-center gap-1.5 text-xs font-medium hover:text-black dark:hover:text-white transition-colors p-1.5 rounded-full hover:bg-black/5 dark:hover:bg-white/10"
-              >
-                <MessageSquare size={15} />
-                <span>{post.comments_count}</span>
-              </Link>
-            </motion.div>
-
-            {!isOwner && (
-              <motion.button
-                type="button"
-                whileHover={{ scale: 1.15 }}
-                whileTap={{ scale: 0.85 }}
-                onClick={() => {
-                  if (!user) {
-                    toast.error("Please sign in to send messages");
-                    return;
-                  }
-                  navigate(`/whisper/${post.profiles?.username}`);
-                }}
-                className="shrink-0 flex items-center gap-1.5 text-xs font-medium hover:text-black dark:hover:text-white transition-colors p-1.5 rounded-full hover:bg-black/5 dark:hover:bg-white/10"
-                title="Whisper to author"
-              >
-                <Send size={15} />
-              </motion.button>
-            )}
-
-            <motion.button
+            <button
               type="button"
-              whileHover={{ scale: 1.15 }}
-              whileTap={{ scale: 0.85 }}
               onClick={() => onBookmark(post.id, post.user_bookmarked)}
-              className={`shrink-0 flex items-center gap-1.5 text-xs font-medium transition-colors p-1.5 rounded-full hover:bg-black/5 dark:hover:bg-white/10 ${post.user_bookmarked ? "text-amber-500 bg-amber-500/10" : "hover:text-black dark:hover:text-white"}`}
-              title="Bookmark post"
+              className={`p-2 rounded-full hover:bg-amber-500/10 hover:text-amber-500 transition-colors ${post.user_bookmarked ? "text-amber-500" : ""}`}
             >
-              <Bookmark size={15} fill={post.user_bookmarked ? "currentColor" : "none"} />
-            </motion.button>
+              <Bookmark size={16} fill={post.user_bookmarked ? "currentColor" : "none"} />
+            </button>
 
             {!isAlreadyEnglish && (
-              <motion.button
+              <button
                 type="button"
-                whileHover={{ scale: 1.15 }}
-                whileTap={{ scale: 0.85 }}
                 onClick={handleTranslate}
                 disabled={isTranslating}
-                className={`shrink-0 flex items-center gap-1.5 text-xs font-medium transition-colors px-2.5 py-1 rounded-full ${isShowingTranslation ? "bg-black/10 dark:bg-white/20 text-black dark:text-white font-semibold" : "hover:bg-black/5 dark:hover:bg-white/10 hover:text-black dark:hover:text-white"}`}
-                title={isShowingTranslation ? "Show Original" : "Translate to English"}
+                className="p-2 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                title="Translate"
               >
-                {isTranslating ? (
-                  <FrogLoader size={12} className="" />
-                ) : (
-                  <Languages size={15} />
-                )}
-                <span className="hidden xs:inline">
-                  {isShowingTranslation ? "Original" : "Translate"}
-                </span>
-              </motion.button>
+                {isTranslating ? <FrogLoader size={14} /> : <Languages size={16} />}
+              </button>
             )}
 
-            <motion.button
+            <button
               type="button"
-              whileHover={{ scale: 1.15 }}
-              whileTap={{ scale: 0.85 }}
               onClick={handleShare}
-              className="shrink-0 flex items-center gap-1.5 text-xs font-medium hover:text-black dark:hover:text-white transition-colors p-1.5 rounded-full hover:bg-black/5 dark:hover:bg-white/10 ml-auto"
-              title="Share post"
+              className="p-2 rounded-full hover:bg-sky-500/10 hover:text-sky-500 transition-colors"
             >
-              <Share size={15} />
-            </motion.button>
+              <Share size={16} />
+            </button>
           </div>
-          <PostLikesDialog
-            postId={post.id}
-            isOpen={isLikesDialogOpen}
-            onOpenChange={setIsLikesDialogOpen}
-          />
+
+          <PostLikesDialog postId={post.id} isOpen={isLikesDialogOpen} onOpenChange={setIsLikesDialogOpen} />
         </div>
       </div>
-    </motion.article>
+    </article>
   );
 });
 

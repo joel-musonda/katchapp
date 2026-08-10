@@ -6,7 +6,6 @@ import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-
 import { useNavigate, Link, useLocation } from "react-router-dom";
 import { getNow } from "@/lib/utils";
 
@@ -58,8 +57,8 @@ const Sidebar = ({ onAction }: SidebarProps) => {
         .sort((a, b) => b.count - a.count)
         .slice(0, 5);
     },
-    staleTime: 1000 * 60 * 5, // 5 minutes (cache for performance)
-    enabled: isHome, // Only fetch for the home feed
+    staleTime: 1000 * 60 * 5,
+    enabled: isHome,
   });
   const trendingTags = rawTrendingTags ?? [];
 
@@ -97,7 +96,6 @@ const Sidebar = ({ onAction }: SidebarProps) => {
             candidates = candidates.filter(p => !followedSet.has(p.user_id));
           }
 
-          // Randomize and pick 3
           const shuffled = [...candidates].sort(() => 0.5 - Math.random());
           setSuggestedDevs(shuffled.slice(0, 3));
         }
@@ -158,14 +156,15 @@ const Sidebar = ({ onAction }: SidebarProps) => {
     <aside className="space-y-4">
       {isHome && (
         <>
+          {/* Who to follow card */}
           <motion.div
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.2 }}
-            className="gum-card p-4"
+            className="bg-zinc-50 dark:bg-zinc-900/50 rounded-2xl border border-zinc-200 dark:border-zinc-800 p-4 transition-colors"
           >
-            <h3 className="font-bold text-sm flex items-center gap-2 mb-3">
-              <Users size={16} />
+            <h3 className="font-bold text-sm text-zinc-900 dark:text-zinc-100 flex items-center gap-2 mb-4">
+              <Users size={16} className="text-sky-500" />
               {t("sidebar.whoToFollow")}
             </h3>
 
@@ -173,12 +172,12 @@ const Sidebar = ({ onAction }: SidebarProps) => {
               <div className="space-y-3">
                 {[1, 2, 3].map((i) => (
                   <div key={i} className="flex items-center gap-3 animate-pulse">
-                    <div className="w-9 h-9 rounded-[3px] gum-border bg-secondary shrink-0"></div>
+                    <div className="w-10 h-10 rounded-full bg-zinc-200 dark:bg-zinc-800 shrink-0"></div>
                     <div className="flex-1 space-y-2">
-                      <div className="h-3 gum-border bg-secondary rounded-[3px] w-2/3"></div>
-                      <div className="h-2 gum-border bg-secondary rounded-[3px] w-1/3"></div>
+                      <div className="h-3 bg-zinc-200 dark:bg-zinc-800 rounded-md w-2/3"></div>
+                      <div className="h-2 bg-zinc-200 dark:bg-zinc-800 rounded-md w-1/3"></div>
                     </div>
-                    <div className="w-[68px] h-[26px] rounded-[3px] gum-border bg-secondary shrink-0"></div>
+                    <div className="w-16 h-7 rounded-full bg-zinc-200 dark:bg-zinc-800 shrink-0"></div>
                   </div>
                 ))}
               </div>
@@ -197,7 +196,7 @@ const Sidebar = ({ onAction }: SidebarProps) => {
                       >
                         <button
                           onClick={() => { navigate(`/u/${dev.username}`); onAction?.(); }}
-                          className="w-9 h-9 rounded-[3px] gum-border bg-secondary flex items-center justify-center font-bold text-[10px] shrink-0 overflow-hidden hover:opacity-80 transition-opacity"
+                          className="w-10 h-10 rounded-full bg-zinc-200 dark:bg-zinc-800 flex items-center justify-center font-bold text-xs shrink-0 overflow-hidden hover:opacity-80 transition-opacity text-zinc-900 dark:text-zinc-100"
                         >
                           {dev.avatar_url ? (
                             <img src={dev.avatar_url} alt={dev.username} className="w-full h-full object-cover" loading="lazy" />
@@ -209,100 +208,106 @@ const Sidebar = ({ onAction }: SidebarProps) => {
                           onClick={() => { navigate(`/u/${dev.username}`); onAction?.(); }}
                           className="flex-1 min-w-0 text-left group"
                         >
-                          <p className="text-sm font-bold truncate group-hover:underline">{dev.display_name}</p>
-                          <p className="text-xs text-muted-foreground truncate">@{dev.username}</p>
+                          <p className="text-sm font-bold text-zinc-900 dark:text-zinc-100 truncate group-hover:underline">
+                            {dev.display_name}
+                          </p>
+                          <p className="text-xs text-zinc-500 truncate">@{dev.username}</p>
                         </button>
                         <button
                           onClick={() => handleFollow(dev.user_id)}
-                          className={`gum-btn text-[11px] px-3 py-1.5 transition-colors ${followingIds.has(dev.user_id)
-                            ? "bg-secondary text-secondary-foreground"
-                            : "bg-primary text-primary-foreground"
-                            }`}
+                          className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${
+                            followingIds.has(dev.user_id)
+                              ? "border border-zinc-300 dark:border-zinc-700 hover:border-red-500 hover:text-red-500 hover:bg-red-500/10 text-zinc-700 dark:text-zinc-300"
+                              : "bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 hover:opacity-90 shadow-sm"
+                          }`}
                         >
                           {followingIds.has(dev.user_id) ? t("sidebar.following") : t("sidebar.follow")}
                         </button>
                       </motion.div>
                     ))
                   ) : (
-                    <p className="text-xs text-muted-foreground py-2 text-center">{t("sidebar.noSuggestions")}</p>
+                    <p className="text-xs text-zinc-500 py-2 text-center">{t("sidebar.noSuggestions")}</p>
                   )}
                 </AnimatePresence>
               </div>
             )}
           </motion.div>
 
+          {/* Trending card */}
           <motion.div
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.25 }}
-            className="gum-card p-4"
+            className="bg-zinc-50 dark:bg-zinc-900/50 rounded-2xl border border-zinc-200 dark:border-zinc-800 p-4 transition-colors"
           >
-            <h3 className="font-bold text-sm flex items-center gap-2 mb-3">
-              <Hash size={16} />
+            <h3 className="font-bold text-sm text-zinc-900 dark:text-zinc-100 flex items-center gap-2 mb-4">
+              <Hash size={16} className="text-sky-500" />
               {t("sidebar.trending")}
             </h3>
-            <div className="space-y-3">
+            <div className="space-y-1">
               {isLoadingTrending ? (
-                <div className="animate-pulse space-y-2 py-1">
-                  <div className="h-3 gum-border bg-secondary rounded-[3px] w-1/2"></div>
-                  <div className="h-2 gum-border bg-secondary rounded-[3px] w-1/3"></div>
+                <div className="animate-pulse space-y-3 py-1">
+                  <div className="h-3 bg-zinc-200 dark:bg-zinc-800 rounded-md w-1/2"></div>
+                  <div className="h-2 bg-zinc-200 dark:bg-zinc-800 rounded-md w-1/3"></div>
                 </div>
               ) : trendingTags.length > 0 ? (
                 trendingTags.map(({ tag, count }) => (
                   <button
                     key={tag}
                     onClick={() => { navigate(`/search?q=${encodeURIComponent('#' + tag)}`); onAction?.(); }}
-                    className="block w-full text-left group"
+                    className="block w-full text-left group p-2 rounded-xl hover:bg-zinc-200/50 dark:hover:bg-zinc-800/50 transition-colors"
                   >
-                    <p className="text-sm font-bold group-hover:underline">#{tag}</p>
-                    <p className="text-[10px] text-muted-foreground">{count} {t("sidebar.echoesIn24h")}</p>
+                    <p className="text-xs text-zinc-500 font-medium">Trending in tech</p>
+                    <p className="text-sm font-bold text-zinc-900 dark:text-zinc-100 group-hover:underline">#{tag}</p>
+                    <p className="text-[11px] text-zinc-500 mt-0.5">{count} {t("sidebar.echoesIn24h")}</p>
                   </button>
                 ))
               ) : (
-                <p className="text-xs text-muted-foreground py-2 text-center italic">{t("sidebar.abyssQuiet")}</p>
+                <p className="text-xs text-zinc-500 py-3 text-center italic">{t("sidebar.abyssQuiet")}</p>
               )}
             </div>
           </motion.div>
         </>
       )}
 
+      {/* Footer info & links card */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.15 }}
-        className="gum-card p-4 space-y-3"
+        className="bg-zinc-50 dark:bg-zinc-900/50 rounded-2xl border border-zinc-200 dark:border-zinc-800 p-4 space-y-3 transition-colors"
       >
-        <div className="flex flex-wrap justify-center items-center gap-x-1 gap-y-1.5 text-xs font-bold uppercase tracking-wider">
-          <Link to="/about" onClick={() => onAction?.()} className="hover:text-primary transition-colors px-1">{t("sidebar.about")}</Link>
-          <span className="text-muted-foreground">·</span>
-          <Link to="/terms" onClick={() => onAction?.()} className="hover:text-primary transition-colors px-1">{t("sidebar.terms")}</Link>
-          <span className="text-muted-foreground">·</span>
-          <Link to="/privacy" onClick={() => onAction?.()} className="hover:text-primary transition-colors px-1">{t("sidebar.privacy")}</Link>
+        <div className="flex flex-wrap justify-center items-center gap-x-1 gap-y-1 text-xs font-semibold text-zinc-500">
+          <Link to="/about" onClick={() => onAction?.()} className="hover:text-sky-500 transition-colors px-1">{t("sidebar.about")}</Link>
+          <span>·</span>
+          <Link to="/terms" onClick={() => onAction?.()} className="hover:text-sky-500 transition-colors px-1">{t("sidebar.terms")}</Link>
+          <span>·</span>
+          <Link to="/privacy" onClick={() => onAction?.()} className="hover:text-sky-500 transition-colors px-1">{t("sidebar.privacy")}</Link>
         </div>
-        <div className="flex flex-wrap justify-center items-center gap-x-2 gap-y-1.5 text-[11px]">
+        <div className="flex flex-wrap justify-center items-center gap-x-3 gap-y-1.5 text-xs">
           <a
             href={`https://github.com/iamovi/genjutsu/issues/new?template=bug_report.yml&title=${encodeURIComponent("[BUG]: ")}&environment=${encodeURIComponent(`- Page: ${window.location.href}\n- User Agent: ${navigator.userAgent}`)}`}
             target="_blank"
             rel="noopener noreferrer"
             onClick={() => onAction?.()}
-            className="flex items-center gap-1 text-muted-foreground hover:text-primary transition-colors font-medium"
+            className="flex items-center gap-1.5 text-zinc-600 dark:text-zinc-400 hover:text-sky-500 transition-colors font-medium"
           >
-            <Bug size={12} />
+            <Bug size={14} />
             {t("sidebar.reportBug")}
           </a>
-          <span className="text-muted-foreground">·</span>
+          <span>·</span>
           <a
             href="https://github.com/iamovi/genjutsu/issues/new?template=feature_request.yml"
             target="_blank"
             rel="noopener noreferrer"
             onClick={() => onAction?.()}
-            className="flex items-center gap-1 text-muted-foreground hover:text-primary transition-colors font-medium"
+            className="flex items-center gap-1.5 text-zinc-600 dark:text-zinc-400 hover:text-sky-500 transition-colors font-medium"
           >
-            <Lightbulb size={12} />
+            <Lightbulb size={14} />
             {t("sidebar.requestFeature")}
           </a>
         </div>
-        <p className="text-[10px] text-muted-foreground text-center leading-relaxed">
+        <p className="text-[11px] text-zinc-400 dark:text-zinc-500 text-center leading-relaxed pt-1 border-t border-zinc-200/60 dark:border-zinc-800/60">
           {t("sidebar.copyright")}
         </p>
       </motion.div>
