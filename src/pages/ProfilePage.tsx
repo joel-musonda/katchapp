@@ -6,7 +6,7 @@ import { PostWithProfile } from "@/hooks/usePosts";
 import Navbar from "@/components/Navbar";
 import PostCard from "@/components/PostCard";
 import Sidebar from "@/components/Sidebar";
-import { ArrowLeft, Calendar, ImageIcon, Send, Bookmark, Github, Twitter, Facebook, Globe, Play, Pause, Ban, Share, Upload, Trash2, MessageCircle } from "lucide-react";
+import { ArrowLeft, Calendar, ImageIcon, Send, Bookmark, Github, Twitter, Facebook, Globe, Play, Pause, Ban, Share, Upload, Trash2, MessageCircle, Sparkles } from "lucide-react";
 import { FrogLoader } from "@/components/ui/FrogLoader";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
@@ -58,7 +58,6 @@ const ProfilePage = () => {
     const [albumPhotos, setAlbumPhotos] = useState<ProfileAlbumPhoto[]>([]);
     const [albumUploading, setAlbumUploading] = useState(false);
     const [albumDeletingIds, setAlbumDeletingIds] = useState<Set<string>>(new Set());
-    const [isLiking, setIsLiking] = useState(false);
     const audioRef = useRef<HTMLAudioElement | null>(null);
     const playAttemptIdRef = useRef(0);
     const [isPlaying, setIsPlaying] = useState(false);
@@ -117,19 +116,15 @@ const ProfilePage = () => {
             audio.pause();
         } else {
             const attemptId = ++playAttemptIdRef.current;
-            // Reflect intent instantly so the button flips on first click.
             setIsPlaying(true);
             try {
                 await audio.play();
             } catch (error: any) {
-                // Ignore stale rejections from previously replaced audio instances.
                 if (attemptId !== playAttemptIdRef.current) return;
-                // Browsers throw AbortError when play() is interrupted by unmount/src change.
                 if (error?.name !== "AbortError") {
                     console.error("Audio playback failed:", error);
                     toast.error("Couldn't play song preview.");
                 }
-                // Keep UI in sync with actual element state.
                 if (audio.paused || audio.ended) {
                     setIsPlaying(false);
                 }
@@ -146,6 +141,7 @@ const ProfilePage = () => {
             disposeAudio(false);
         };
     }, []);
+
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<"posts" | "bookmarks">("posts");
 
@@ -158,15 +154,14 @@ const ProfilePage = () => {
     const { user } = useAuth();
     const navigate = useNavigate();
 
-    // Use our new professional hook
     const { isFollowing, toggleFollow, stats, refresh: refreshFollows } = useFollow(profile?.user_id);
 
     const handleShareProfile = async () => {
         if (!profile?.username) return;
 
         const url = `${window.location.origin}/u/${profile.username}`;
-        const title = `${profile.display_name} (@${profile.username}) on genjutsu`;
-        const baseText = profile.bio?.trim() || `Check out @${profile.username} on genjutsu.`;
+        const title = `${profile.display_name} (@${profile.username}) on Katchapp`;
+        const baseText = profile.bio?.trim() || `Check out @${profile.username} on Katchapp.`;
         const text = baseText.length > 140 ? `${baseText.slice(0, 137)}...` : baseText;
 
         const result = await shareWithFallback({ title, text, url });
@@ -184,7 +179,6 @@ const ProfilePage = () => {
             setLoading(true);
             setAlbumPhotos([]);
 
-            // 1. Fetch Profile
             const { data: p, error: pError } = await supabase
                 .from("profiles")
                 .select("*")
@@ -195,7 +189,6 @@ const ProfilePage = () => {
             if (!p) throw new Error("Profile not found");
             setProfile(p as unknown as ProfileData);
 
-            // 2. Fetch Persistent Profile Album
             const { data: albumData, error: albumError } = await supabase
                 .from("profile_album_photos")
                 .select("id, user_id, photo_url, storage_path, created_at")
@@ -209,7 +202,6 @@ const ProfilePage = () => {
                 setAlbumPhotos((albumData || []) as ProfileAlbumPhoto[]);
             }
 
-            // 3. Fetch Posts
             const { data: postsData } = await (supabase
                 .from("posts")
                 .select(`
@@ -223,7 +215,6 @@ const ProfilePage = () => {
             if (postsData && p) {
                 const postIds = (postsData as any[]).map(post => post.id);
 
-                // Fetch counts and user status
                 const [{ data: likesData }, { data: commentsData }] = await Promise.all([
                     supabase.from("likes").select("post_id").in("post_id", postIds),
                     supabase.from("comments").select("post_id").in("post_id", postIds),
@@ -239,7 +230,6 @@ const ProfilePage = () => {
                     commentsCounts[c.post_id] = (commentsCounts[c.post_id] || 0) + 1;
                 });
 
-                // Fetch user's status
                 let userLikes: Set<string> = new Set();
                 let userBookmarks: Set<string> = new Set();
 
@@ -275,10 +265,8 @@ const ProfilePage = () => {
 
     useEffect(() => {
         fetchData();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [username, user?.id]);
 
-    // Fetch bookmarked posts (only for own profile)
     const fetchBookmarks = async () => {
         if (!user || !profile || user.id !== profile.user_id) return;
 
@@ -352,7 +340,6 @@ const ProfilePage = () => {
         if (activeTab === "bookmarks" && profile && user?.id === profile.user_id) {
             fetchBookmarks();
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [activeTab, profile?.user_id, user?.id]);
 
     const handleAlbumUpload = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -474,7 +461,6 @@ const ProfilePage = () => {
         }
 
         toggleLike(postId, currentlyLiked);
-        // Local state sync
         setPosts((prev) =>
             prev.map((p) => {
                 if (p.id === postId) {
@@ -496,7 +482,6 @@ const ProfilePage = () => {
         }
 
         toggleBookmark(postId, currentlyBookmarked);
-        // Local state sync for posts
         setPosts((prev) =>
             prev.map((p) => {
                 if (p.id === postId) {
@@ -505,11 +490,9 @@ const ProfilePage = () => {
                 return p;
             })
         );
-        // If unbookmarking, instantly remove from bookmarks list
         if (currentlyBookmarked) {
             setBookmarks((prev) => prev.filter((p) => p.id !== postId));
         } else {
-            // If bookmarking, update the bookmark state in bookmarks list too
             setBookmarks((prev) =>
                 prev.map((p) => p.id === postId ? { ...p, user_bookmarked: true } : p)
             );
@@ -520,7 +503,6 @@ const ProfilePage = () => {
         if (!user) return;
         try {
             await deletePost(postId);
-            // Local state sync
             setPosts((prev) => prev.filter((p) => p.id !== postId));
         } catch (err) {
             toast.error("Failed to delete post");
@@ -577,20 +559,20 @@ const ProfilePage = () => {
         : ["Restricted actions are configured by admin."];
 
     return (
-        <div className="min-h-screen bg-background text-foreground">
+        <div className="min-h-screen bg-slate-50 dark:bg-black text-slate-900 dark:text-slate-100 font-sans transition-colors selection:bg-sky-500 selection:text-white">
             {profile && (
                 <Helmet>
-                    <title>{profile.display_name} (u/{profile.username}) — genjutsu</title>
-                    <meta name="description" content={profile.bio || `Check out ${profile.display_name}'s profile on genjutsu.`} />
-                    <meta property="og:title" content={`${profile.display_name} (u/${profile.username}) — genjutsu`} />
-                    <meta property="og:description" content={profile.bio || `Check out ${profile.display_name}'s profile on genjutsu.`} />
+                    <title>{profile.display_name} (@{profile.username}) — Katchapp</title>
+                    <meta name="description" content={profile.bio || `Check out ${profile.display_name}'s profile on Katchapp.`} />
+                    <meta property="og:title" content={`${profile.display_name} (@{profile.username}) — Katchapp`} />
+                    <meta property="og:description" content={profile.bio || `Check out ${profile.display_name}'s profile on Katchapp.`} />
                     <meta property="og:image" content={profile.avatar_url || "/fav.jpg"} />
                 </Helmet>
             )}
             <Navbar />
-            <main className="max-w-6xl mx-auto px-4 py-8">
-                <PageTransition className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-8">
-                    <div className="space-y-4 min-w-0">
+            <main className="max-w-6xl mx-auto px-3 sm:px-4 py-6">
+                <PageTransition className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6">
+                    <div className="space-y-6 min-w-0">
                         {loading ? (
                             <div className="space-y-6">
                                 <PostSkeleton />
@@ -598,20 +580,22 @@ const ProfilePage = () => {
                                 <PostSkeleton />
                             </div>
                         ) : !profile ? (
-                            <div className="gum-card p-12 text-center text-muted-foreground">
+                            <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-2xl p-12 text-center text-slate-500 shadow-sm">
                                 Profile not found.
                             </div>
                         ) : (
                             <>
                                 <Link
                                     to="/"
-                                    className="inline-flex items-center gap-2 px-3 py-1.5 gum-card bg-secondary text-xs font-bold hover:bg-primary hover:text-primary-foreground transition-colors w-fit"
+                                    className="inline-flex items-center gap-2 px-3.5 py-2 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-full text-xs font-semibold text-slate-600 dark:text-zinc-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-zinc-800 transition-all shadow-sm w-fit"
                                 >
                                     <ArrowLeft size={14} />
                                     Back to Home
                                 </Link>
-                                <div className="gum-card overflow-hidden mb-8">
-                                    <div className="h-48 bg-secondary relative overflow-hidden flex items-center justify-center">
+
+                                {/* Modern Profile Header Card */}
+                                <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-3xl overflow-hidden shadow-sm">
+                                    <div className="h-44 sm:h-56 bg-gradient-to-r from-sky-500/20 via-indigo-500/20 to-purple-500/20 relative overflow-hidden flex items-center justify-center">
                                         {profile.banner_url ? (
                                             <img
                                                 src={profile.banner_url}
@@ -619,17 +603,18 @@ const ProfilePage = () => {
                                                 className="w-full h-full object-cover"
                                             />
                                         ) : (
-                                            <div className="flex flex-col items-center gap-2 opacity-20">
-                                                <ImageIcon size={48} />
-                                                <span className="text-xs font-bold uppercase tracking-widest">Genjutsu Illusion</span>
+                                            <div className="flex flex-col items-center gap-2 opacity-30 text-sky-600 dark:text-sky-400">
+                                                <Sparkles size={36} />
+                                                <span className="text-xs font-bold uppercase tracking-widest">Katchapp Network</span>
                                             </div>
                                         )}
                                     </div>
-                                    <div className="px-6 pb-6 relative">
-                                        <div className="absolute -top-12 left-6">
+
+                                    <div className="px-5 sm:px-8 pb-6 relative">
+                                        <div className="flex justify-between items-end -mt-14 sm:-mt-16 mb-4">
                                             <div
                                                 onClick={() => profile.avatar_url && setIsAvatarPreviewOpen(true)}
-                                                className={`w-24 h-24 rounded-[3px] gum-border bg-secondary flex items-center justify-center text-3xl font-bold gum-shadow overflow-hidden transition-opacity outline-none ${profile.avatar_url ? 'cursor-pointer hover:opacity-90' : 'cursor-default'}`}
+                                                className={`w-28 h-28 sm:w-32 sm:h-32 rounded-full border-4 border-white dark:border-zinc-900 bg-white dark:bg-zinc-800 flex items-center justify-center text-3xl sm:text-4xl font-extrabold shadow-md overflow-hidden transition-transform hover:scale-[1.02] ${profile.avatar_url ? 'cursor-pointer' : 'cursor-default'}`}
                                             >
                                                 {profile.avatar_url ? (
                                                     <img src={profile.avatar_url} alt={profile.username} className="w-full h-full object-cover" loading="lazy" />
@@ -643,115 +628,110 @@ const ProfilePage = () => {
                                                     alt={`${profile.display_name}'s avatar`}
                                                 />
                                             )}
-                                        </div>
 
-                                        <div className="flex justify-end pt-4 pl-[7.5rem] sm:pl-0">
-                                            {isOwnProfile ? (
-                                                <div className="flex flex-wrap items-center justify-end gap-1.5 xs:gap-2">
-                                                    <button
-                                                        onClick={handleShareProfile}
-                                                        className="p-1.5 xs:p-2 gum-card bg-secondary text-muted-foreground hover:text-primary transition-colors"
-                                                        title="Share profile"
-                                                    >
-                                                        <Share size={18} />
-                                                    </button>
-                                                    <EditProfileDialog
-                                                        currentProfile={{
-                                                            display_name: profile.display_name,
-                                                            bio: profile.bio,
-                                                            avatar_url: profile.avatar_url,
-                                                            banner_url: profile.banner_url,
-                                                            social_links: profile.social_links,
-                                                            fav_song: profile.fav_song
-                                                        }}
-                                                        onUpdate={fetchData}
-                                                    />
-                                                </div>
-                                            ) : (
-                                                <div className="flex flex-wrap items-center justify-end gap-1.5 xs:gap-2">
-                                                    <button
-                                                        onClick={() => {
-                                                            if (!user) {
-                                                                toast.error("Please sign in to send messages");
-                                                                return;
-                                                            }
-                                                            navigate(`/whisper/${profile.username}`);
-                                                        }}
-                                                        className="p-1.5 xs:p-2 gum-card bg-secondary text-muted-foreground hover:text-primary transition-colors"
-                                                        title="Whisper"
-                                                    >
-                                                        <Send size={18} />
-                                                    </button>
-                                                    <button
-                                                        onClick={handleShareProfile}
-                                                        className="p-1.5 xs:p-2 gum-card bg-secondary text-muted-foreground hover:text-primary transition-colors"
-                                                        title="Share profile"
-                                                    >
-                                                        <Share size={18} />
-                                                    </button>
-                                                    <button
-                                                        onClick={toggleFollow}
-                                                        className={`gum-btn text-xs xs:text-sm px-4 xs:px-6 py-2 xs:py-2.5 whitespace-nowrap ${isFollowing ? 'bg-secondary' : 'bg-primary text-primary-foreground'}`}
-                                                    >
-                                                        {isFollowing ? 'Following' : 'Follow'}
-                                                    </button>
-                                                </div>
-                                            )}
+                                            <div className="flex items-center gap-2">
+                                                {isOwnProfile ? (
+                                                    <div className="flex items-center gap-2">
+                                                        <button
+                                                            onClick={handleShareProfile}
+                                                            className="p-2.5 bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 hover:text-slate-900 dark:hover:text-white rounded-full transition-colors border border-slate-200 dark:border-zinc-700 shadow-sm"
+                                                            title="Share profile"
+                                                        >
+                                                            <Share size={18} />
+                                                        </button>
+                                                        <EditProfileDialog
+                                                            currentProfile={{
+                                                                display_name: profile.display_name,
+                                                                bio: profile.bio,
+                                                                avatar_url: profile.avatar_url,
+                                                                banner_url: profile.banner_url,
+                                                                social_links: profile.social_links,
+                                                                fav_song: profile.fav_song
+                                                            }}
+                                                            onUpdate={fetchData}
+                                                        />
+                                                    </div>
+                                                ) : (
+                                                    <div className="flex items-center gap-2">
+                                                        <button
+                                                            onClick={() => {
+                                                                if (!user) {
+                                                                    toast.error("Please sign in to send messages");
+                                                                    return;
+                                                                }
+                                                                navigate(`/whisper/${profile.username}`);
+                                                            }}
+                                                            className="p-2.5 bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 hover:text-slate-900 dark:hover:text-white rounded-full transition-colors border border-slate-200 dark:border-zinc-700 shadow-sm"
+                                                            title="Whisper"
+                                                        >
+                                                            <Send size={18} />
+                                                        </button>
+                                                        <button
+                                                            onClick={handleShareProfile}
+                                                            className="p-2.5 bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 hover:text-slate-900 dark:hover:text-white rounded-full transition-colors border border-slate-200 dark:border-zinc-700 shadow-sm"
+                                                            title="Share profile"
+                                                        >
+                                                            <Share size={18} />
+                                                        </button>
+                                                        <button
+                                                            onClick={toggleFollow}
+                                                            className={`px-5 py-2.5 rounded-full text-sm font-semibold transition-all shadow-sm ${isFollowing ? 'bg-slate-200 dark:bg-zinc-800 text-slate-800 dark:text-zinc-200 hover:bg-slate-300 dark:hover:bg-zinc-700' : 'bg-sky-500 hover:bg-sky-600 text-white'}`}
+                                                        >
+                                                            {isFollowing ? 'Following' : 'Follow'}
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
 
                                         {hasActiveBan && (
-                                            <div className="mt-8 mb-4">
-                                                <div className="bg-destructive/10 border-2 border-destructive/20 rounded-[3px] p-4 flex items-start gap-3">
-                                                    <div className="bg-destructive text-destructive-foreground p-1.5 rounded-sm shrink-0">
+                                            <div className="my-4">
+                                                <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-4 flex items-start gap-3 text-red-600 dark:text-red-400">
+                                                    <div className="bg-red-500 text-white p-2 rounded-xl shrink-0 shadow-sm">
                                                         <Ban size={18} />
                                                     </div>
                                                     <div>
-                                                        <h3 className="text-sm font-bold text-destructive">Account Restricted</h3>
+                                                        <h3 className="text-sm font-bold">Account Restricted</h3>
                                                         {profile.ban_permanent ? (
-                                                            <p className="text-xs text-destructive/80 mt-1">
-                                                                Ban type: <strong>Permanent</strong>
+                                                            <p className="text-xs mt-0.5">
+                                                                Ban type: <strong className="font-semibold">Permanent</strong>
                                                             </p>
                                                         ) : (
-                                                            <p className="text-xs text-destructive/80 mt-1">
-                                                                Ban type: <strong>Temporary</strong> until <strong>{new Date(profile.banned_until as string).toLocaleString()}</strong>.
+                                                            <p className="text-xs mt-0.5">
+                                                                Ban type: <strong className="font-semibold">Temporary</strong> until <strong className="font-semibold">{new Date(profile.banned_until as string).toLocaleString()}</strong>.
                                                             </p>
                                                         )}
                                                         {profile.ban_reason && (
-                                                            <p className="text-xs text-destructive/80 mt-1">
-                                                                Reason: <strong>{profile.ban_reason}</strong>
+                                                            <p className="text-xs mt-0.5">
+                                                                Reason: <strong className="font-semibold">{profile.ban_reason}</strong>
                                                             </p>
                                                         )}
                                                         <div className="mt-2">
-                                                            <p className="text-xs text-destructive/80">
-                                                                You currently cannot:
-                                                            </p>
-                                                            <ul className="mt-1 text-xs text-destructive/80 list-disc ml-4 space-y-1">
+                                                            <p className="text-xs font-medium">You currently cannot:</p>
+                                                            <ul className="mt-1 text-xs list-disc ml-4 space-y-0.5">
                                                                 {blockedActionsDisplay.map((action) => (
                                                                     <li key={action}>{action}</li>
                                                                 ))}
                                                             </ul>
                                                         </div>
-                                                        <p className="text-[11px] text-destructive/70 mt-2">
-                                                            Scope mode: <strong>{isGlobalRestriction ? "Global restriction" : "Scoped restriction"}</strong>
-                                                        </p>
                                                     </div>
                                                 </div>
                                             </div>
                                         )}
 
-                                        <div className={`min-w-0 max-w-full overflow-hidden ${!hasActiveBan ? 'mt-8' : ''}`}>
-                                            <h1 className="text-2xl font-bold tracking-tight truncate">
+                                        <div className="space-y-1">
+                                            <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
                                                 {profile.display_name}
                                             </h1>
-                                            <p className="text-muted-foreground truncate">u/{profile.username}</p>
+                                            <p className="text-sm text-slate-500 dark:text-zinc-400 font-medium">@{profile.username}</p>
                                         </div>
 
-                                        <p className="mt-4 text-sm leading-relaxed max-w-xl whitespace-pre-wrap">
+                                        <p className="mt-3 text-sm leading-relaxed text-slate-700 dark:text-zinc-300 max-w-2xl whitespace-pre-wrap">
                                             {profile.bio ? linkify(profile.bio) : "No bio yet."}
                                         </p>
 
                                         {profile.social_links && Object.values(profile.social_links).some(link => link) && (
-                                            <div className="flex flex-wrap gap-3 mt-4">
+                                            <div className="flex flex-wrap gap-2.5 mt-4">
                                                 {Object.entries(profile.social_links).map(([platform, link]) => {
                                                     if (!link) return null;
 
@@ -770,10 +750,11 @@ const ProfilePage = () => {
                                                             href={formattedLink}
                                                             target="_blank"
                                                             rel="noopener noreferrer"
-                                                            className="p-2 gum-card bg-secondary/50 text-muted-foreground hover:text-primary hover:bg-secondary transition-all hover:scale-110 active:scale-95"
+                                                            className="p-2 bg-slate-100 dark:bg-zinc-800/80 text-slate-600 dark:text-zinc-300 hover:text-sky-500 dark:hover:text-sky-400 rounded-xl transition-all hover:scale-105 border border-slate-200 dark:border-zinc-700/50 flex items-center gap-1.5 text-xs font-medium"
                                                             title={platform.charAt(0).toUpperCase() + platform.slice(1)}
                                                         >
-                                                            <Icon size={18} />
+                                                            <Icon size={16} />
+                                                            <span className="capitalize">{platform}</span>
                                                         </a>
                                                     );
                                                 })}
@@ -781,94 +762,94 @@ const ProfilePage = () => {
                                         )}
 
                                         {profile.fav_song && (
-                                            <div className="mt-6">
-                                                <div className="inline-flex items-center gap-3 px-5 py-2.5 bg-background border-2 border-foreground rounded-[3px] shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] animate-in fade-in slide-in-from-top-4 duration-500">
+                                            <div className="mt-5">
+                                                <div className="inline-flex items-center gap-3 px-4 py-2.5 bg-slate-50 dark:bg-zinc-800/60 border border-slate-200 dark:border-zinc-700 rounded-2xl shadow-sm">
                                                     <div className="relative group shrink-0">
                                                         <DataSaverImage
                                                             src={profile.fav_song.artworkUrl100}
-                                                            className="w-10 h-10 rounded-[3px] object-cover border-2 border-foreground animate-spin-slow"
+                                                            className="w-10 h-10 rounded-xl object-cover border border-slate-200 dark:border-zinc-700 animate-spin-slow"
                                                             style={{ animationPlayState: isPlaying ? 'running' : 'paused' }}
                                                             alt=""
                                                         />
                                                         <button
                                                             onClick={togglePlay}
-                                                            className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-[3px] opacity-0 group-hover:opacity-100 transition-opacity text-white"
+                                                            className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity text-white"
                                                         >
                                                             {isPlaying ? <Pause size={14} fill="currentColor" /> : <Play size={14} fill="currentColor" />}
                                                         </button>
                                                     </div>
                                                     <div className="flex flex-col min-w-0">
-                                                        <div className="flex gap-1 items-end h-3 mb-1.5">
+                                                        <div className="flex gap-1 items-end h-3 mb-1">
                                                             {[1, 2, 3, 4, 5].map(i => (
                                                                 <div
                                                                     key={i}
-                                                                    className={`w-1 bg-foreground rounded-full transition-all duration-300 ${isPlaying ? 'animate-music-bar' : 'h-1'}`}
+                                                                    className={`w-1 bg-sky-500 rounded-full transition-all duration-300 ${isPlaying ? 'animate-music-bar' : 'h-1'}`}
                                                                     style={{ animationDelay: `${i * 0.15}s` }}
                                                                 />
                                                             ))}
                                                         </div>
-                                                        <p className="text-xs font-black truncate max-w-[250px] leading-tight flex items-center gap-1.5">
+                                                        <p className="text-xs font-bold truncate max-w-[240px] text-slate-800 dark:text-zinc-200 flex items-center gap-1.5">
                                                             {profile.fav_song.trackName}
-                                                            <span className="w-1 h-1 rounded-full bg-foreground/20" />
-                                                            <span className="opacity-60 font-medium">{profile.fav_song.artistName}</span>
+                                                            <span className="w-1 h-1 rounded-full bg-slate-400" />
+                                                            <span className="opacity-70 font-normal">{profile.fav_song.artistName}</span>
                                                         </p>
                                                     </div>
                                                 </div>
                                             </div>
                                         )}
 
-                                        <div className="flex flex-wrap gap-4 mt-6 text-sm text-muted-foreground">
+                                        <div className="flex flex-wrap items-center gap-6 mt-5 text-xs text-slate-500 dark:text-zinc-400">
                                             <div className="flex items-center gap-1.5">
-                                                <Calendar size={16} />
-                                                <span>Joined {new Date(profile.created_at).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}</span>
+                                                <Calendar size={15} />
+                                                <span>Joined {new Date(profile.created_at).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</span>
                                             </div>
                                         </div>
 
-                                        <div className="flex gap-6 mt-6">
+                                        <div className="flex items-center gap-6 mt-4 pt-4 border-t border-slate-100 dark:border-zinc-800">
                                             <button
                                                 onClick={() => {
                                                     setFollowsModalType("following");
                                                     setFollowsModalOpen(true);
                                                 }}
-                                                className="hover:underline flex items-center gap-1.5"
+                                                className="hover:opacity-80 flex items-center gap-1.5 text-sm"
                                             >
-                                                <span className="font-bold text-foreground">{stats.following}</span>
-                                                <span className="text-muted-foreground text-sm">Following</span>
+                                                <span className="font-bold text-slate-900 dark:text-white">{stats.following}</span>
+                                                <span className="text-slate-500 dark:text-zinc-400">Following</span>
                                             </button>
                                             <button
                                                 onClick={() => {
                                                     setFollowsModalType("followers");
                                                     setFollowsModalOpen(true);
                                                 }}
-                                                className="hover:underline flex items-center gap-1.5"
+                                                className="hover:opacity-80 flex items-center gap-1.5 text-sm"
                                             >
-                                                <span className="font-bold text-foreground">{stats.followers}</span>
-                                                <span className="text-muted-foreground text-sm">Followers</span>
+                                                <span className="font-bold text-slate-900 dark:text-white">{stats.followers}</span>
+                                                <span className="text-slate-500 dark:text-zinc-400">Followers</span>
                                             </button>
                                         </div>
 
-                                        {/* Ask Me Anything link */}
-                                        <div className="mt-6">
+                                        <div className="mt-4 pt-2">
                                             <button
                                                 onClick={() => navigate(`/qna/${profile.username}`)}
-                                                className="gum-btn bg-secondary text-sm flex items-center gap-2 hover:bg-primary hover:text-primary-foreground transition-colors"
+                                                className="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 dark:bg-zinc-800 hover:bg-sky-50 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-200 rounded-xl text-xs font-semibold transition-all border border-slate-200 dark:border-zinc-700 shadow-sm"
                                             >
-                                                <MessageCircle size={16} />
+                                                <MessageCircle size={15} className="text-sky-500" />
                                                 Ask me anything
                                             </button>
                                         </div>
                                     </div>
                                 </div>
 
-                                <div className="gum-card p-5 sm:p-6 mb-8">
+                                {/* Album Section */}
+                                <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-3xl p-5 sm:p-6 shadow-sm">
                                     <div className="flex flex-wrap items-center justify-between gap-3">
                                         <div>
-                                            <h2 className="text-lg font-bold tracking-tight">Album</h2>
-                                            <p className="text-xs text-muted-foreground">
-                                                Persistent profile photos. Nothing expires automatically.
+                                            <h2 className="text-base font-bold text-slate-900 dark:text-white">Album Gallery</h2>
+                                            <p className="text-xs text-slate-500 dark:text-zinc-400">
+                                                Persistent showcase photos.
                                             </p>
                                         </div>
-                                        <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+                                        <span className="text-xs font-bold px-2.5 py-1 bg-slate-100 dark:bg-zinc-800 rounded-full text-slate-600 dark:text-zinc-300">
                                             {albumPhotos.length}/5
                                         </span>
                                     </div>
@@ -885,16 +866,16 @@ const ProfilePage = () => {
                                             <button
                                                 onClick={() => albumInputRef.current?.click()}
                                                 disabled={albumUploading || albumPhotos.length >= 5}
-                                                className="gum-btn flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                className="inline-flex items-center gap-2 px-4 py-2 bg-sky-500 hover:bg-sky-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl text-xs font-semibold transition-all shadow-sm"
                                             >
-                                                {albumUploading ? <FrogLoader className="" size={16} /> : <Upload size={16} />}
+                                                {albumUploading ? <FrogLoader className="" size={16} /> : <Upload size={15} />}
                                                 {albumPhotos.length >= 5 ? "Album Full (5/5)" : "Upload Photo"}
                                             </button>
                                         </div>
                                     )}
 
                                     {albumPhotos.length === 0 ? (
-                                        <div className="mt-4 border-2 border-dashed border-border rounded-[3px] p-6 text-center text-sm text-muted-foreground">
+                                        <div className="mt-4 border border-dashed border-slate-200 dark:border-zinc-800 rounded-2xl p-8 text-center text-xs text-slate-400">
                                             No album photos yet.
                                         </div>
                                     ) : (
@@ -902,10 +883,10 @@ const ProfilePage = () => {
                                             {albumPhotos.map((photo) => {
                                                 const isDeleting = albumDeletingIds.has(photo.id);
                                                 return (
-                                                    <div key={photo.id} className="relative group">
+                                                    <div key={photo.id} className="relative group rounded-2xl overflow-hidden border border-slate-200 dark:border-zinc-800 aspect-square">
                                                         <button
                                                             onClick={() => openAlbumPreview(photo.photo_url)}
-                                                            className="w-full aspect-square rounded-[3px] overflow-hidden gum-border bg-secondary hover:opacity-90 transition-opacity"
+                                                            className="w-full h-full hover:opacity-95 transition-opacity"
                                                             title="Open photo"
                                                         >
                                                             <DataSaverImage
@@ -918,7 +899,7 @@ const ProfilePage = () => {
                                                             <button
                                                                 onClick={() => handleAlbumDelete(photo)}
                                                                 disabled={isDeleting}
-                                                                className="absolute top-2 right-2 p-1.5 rounded-[3px] bg-black/60 text-white hover:bg-black/80 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                                                                className="absolute top-2 right-2 p-1.5 rounded-xl bg-black/60 backdrop-blur-md text-white hover:bg-black/80 transition-colors disabled:opacity-60 shadow-sm"
                                                                 title="Delete photo"
                                                             >
                                                                 {isDeleting ? <FrogLoader className="" size={14} /> : <Trash2 size={14} />}
@@ -931,33 +912,34 @@ const ProfilePage = () => {
                                     )}
                                 </div>
 
-                                <div className="space-y-6">
+                                {/* Tabs & Posts */}
+                                <div className="space-y-4">
                                     {isOwnProfile ? (
-                                        <div className="flex gap-2 border-b border-border pb-px mb-4">
+                                        <div className="flex border-b border-slate-200 dark:border-zinc-800">
                                             {(["posts", "bookmarks"] as const).map((tab) => (
                                                 <button
                                                     key={tab}
                                                     onClick={() => setActiveTab(tab)}
-                                                    className={`px-6 py-2.5 text-sm font-bold capitalize transition-all relative flex items-center gap-2 ${activeTab === tab ? "text-primary" : "text-muted-foreground hover:text-foreground"}`}
+                                                    className={`flex-1 sm:flex-none px-6 py-3 text-sm font-semibold capitalize transition-all relative flex items-center justify-center gap-2 ${activeTab === tab ? "text-sky-500 dark:text-sky-400" : "text-slate-500 hover:text-slate-900 dark:hover:text-white"}`}
                                                 >
-                                                    {tab === "bookmarks" && <Bookmark size={14} />}
+                                                    {tab === "bookmarks" && <Bookmark size={15} />}
                                                     {tab}
                                                     {activeTab === tab && (
                                                         <motion.div
                                                             layoutId="profileTab"
-                                                            className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary"
+                                                            className="absolute bottom-0 left-0 right-0 h-0.5 bg-sky-500"
                                                         />
                                                     )}
                                                 </button>
                                             ))}
                                         </div>
                                     ) : (
-                                        <h2 className="font-bold text-lg px-2">Posts</h2>
+                                        <h2 className="font-bold text-base px-1 text-slate-900 dark:text-white">Posts</h2>
                                     )}
 
                                     {activeTab === "posts" ? (
                                         posts.length === 0 ? (
-                                            <div className="gum-card p-12 text-center text-muted-foreground text-sm">
+                                            <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-2xl p-12 text-center text-slate-400 text-sm shadow-sm">
                                                 No posts yet.
                                             </div>
                                         ) : (
@@ -979,14 +961,14 @@ const ProfilePage = () => {
                                         )
                                     ) : (
                                         bookmarks.length === 0 ? (
-                                            <div className="gum-card p-12 text-center flex flex-col items-center gap-4 bg-secondary/20 border-dashed">
-                                                <div className="w-16 h-16 rounded-[3px] bg-secondary flex items-center justify-center border-2 border-primary/20">
-                                                    <Bookmark size={32} className="text-primary/50" />
+                                            <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-2xl p-12 text-center flex flex-col items-center gap-3 shadow-sm">
+                                                <div className="w-14 h-14 rounded-2xl bg-sky-500/10 flex items-center justify-center text-sky-500">
+                                                    <Bookmark size={28} />
                                                 </div>
                                                 <div>
-                                                    <h3 className="font-bold text-lg">No bookmarks yet</h3>
-                                                    <p className="text-sm text-muted-foreground mt-1">
-                                                        Save posts to find them later. Bookmarked posts still vanish after 24 hours.
+                                                    <h3 className="font-bold text-base text-slate-900 dark:text-white">No bookmarks yet</h3>
+                                                    <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
+                                                        Save posts to find them later.
                                                     </p>
                                                 </div>
                                             </div>
@@ -1013,7 +995,7 @@ const ProfilePage = () => {
                         )}
                     </div>
 
-                    <div className="hidden lg:block lg:sticky lg:top-20 self-start max-h-[calc(100vh-6rem)] overflow-y-auto pr-2 custom-scrollbar">
+                    <div className="hidden lg:block lg:sticky lg:top-20 self-start max-h-[calc(100vh-6rem)] overflow-y-auto pr-1 custom-scrollbar">
                         <Sidebar />
                     </div>
                 </PageTransition>

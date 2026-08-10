@@ -3,7 +3,6 @@ import { Search as SearchIcon, User, Hash, ArrowLeft, Send } from "lucide-react"
 import { FrogLoader } from "@/components/ui/FrogLoader";
 import { supabase } from "@/integrations/supabase/client";
 import Navbar from "@/components/Navbar";
-import Sidebar from "@/components/Sidebar";
 import PostCard from "@/components/PostCard";
 import { PostWithProfile } from "@/hooks/usePosts";
 import { useAuth } from "@/hooks/useAuth";
@@ -50,7 +49,6 @@ const SearchPage = () => {
 
         setLoading(true);
         try {
-            // Sanitize input to prevent broken PostgREST filters
             const sanitized = sanitizeSearchInput(val);
             if (!sanitized.trim()) {
                 setResults({ profiles: [], posts: [] });
@@ -142,14 +140,12 @@ const SearchPage = () => {
         }, 400);
 
         return () => clearTimeout(timer);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [searchTerm]);
 
     useEffect(() => {
         if (query && query !== searchTerm) {
             setSearchTerm(query);
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [query]);
 
     const { toggleLike, toggleBookmark, deletePost } = usePostActions();
@@ -216,143 +212,142 @@ const SearchPage = () => {
     };
 
     return (
-        <div className="min-h-screen bg-background text-foreground">
+        <div className="min-h-screen bg-white dark:bg-black text-zinc-900 dark:text-zinc-100 transition-colors">
             <Helmet>
-                <title>{query ? `Search: ${query} — genjutsu` : "Search — genjutsu"}</title>
+                <title>{query ? `Search: ${query} — Katchapp` : "Search — Katchapp"}</title>
             </Helmet>
             <Navbar />
-            <main className="max-w-6xl mx-auto px-4 py-6">
-                <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-6">
-                    <div className="space-y-6 min-w-0">
-                        <div className="flex items-center gap-4">
+            <main className="max-w-3xl mx-auto px-4 py-6">
+                <div className="space-y-6">
+                    {/* Search Header Bar */}
+                    <div className="flex items-center gap-3">
+                        <button
+                            onClick={() => navigate(-1)}
+                            className="p-2.5 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 dark:text-zinc-400 transition-colors border border-zinc-200 dark:border-zinc-800"
+                            title="Go back"
+                        >
+                            <ArrowLeft size={18} />
+                        </button>
+                        <div className="flex-1 relative">
+                            <SearchIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400 dark:text-zinc-500" size={18} />
+                            <input
+                                type="text"
+                                id="search-input"
+                                name="search"
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                placeholder="Search users, echoes, or #hashtags..."
+                                className="w-full bg-zinc-100/80 dark:bg-zinc-900/80 border border-zinc-200 dark:border-zinc-800 rounded-full py-2.5 pl-11 pr-4 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 transition-all text-sm font-normal text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 shadow-sm"
+                                autoFocus
+                            />
+                        </div>
+                    </div>
+
+                    {/* Navigation Tabs */}
+                    <div className="flex gap-6 border-b border-zinc-200 dark:border-zinc-800 px-2">
+                        {(["posts", "users"] as const).map((tab) => (
                             <button
-                                onClick={() => navigate(-1)}
-                                className="p-2 hover:bg-secondary rounded-[3px] transition-colors border-2 border-transparent hover:border-border"
+                                key={tab}
+                                onClick={() => setActiveTab(tab)}
+                                className={`pb-3 text-sm font-semibold capitalize transition-all relative ${
+                                    activeTab === tab
+                                        ? "text-zinc-900 dark:text-zinc-100"
+                                        : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100"
+                                }`}
                             >
-                                <ArrowLeft size={20} />
+                                {tab}
+                                {activeTab === tab && (
+                                    <motion.div
+                                        layoutId="activeTab"
+                                        className="absolute bottom-0 left-0 right-0 h-0.5 bg-sky-500 rounded-full"
+                                    />
+                                )}
                             </button>
-                            <div className="flex-1 relative">
-                                <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
-                                <input
-                                    type="text"
-                                    id="search-input"
-                                    name="search"
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                    placeholder="Search users, echoes, or #hashtags..."
-                                    className="w-full bg-secondary/50 gum-border py-2.5 pl-10 pr-4 outline-none focus:border-primary transition-colors text-sm"
-                                    autoFocus
-                                />
-                            </div>
-                        </div>
+                        ))}
+                    </div>
 
-                        <div className="flex gap-2 border-b border-border pb-px">
-                            {(["posts", "users"] as const).map((tab) => (
-                                <button
-                                    key={tab}
-                                    onClick={() => setActiveTab(tab)}
-                                    className={`px-6 py-2.5 text-sm font-bold capitalize transition-all relative ${activeTab === tab ? "text-primary" : "text-muted-foreground hover:text-foreground"
-                                        }`}
-                                >
-                                    {tab}
-                                    {activeTab === tab && (
-                                        <motion.div
-                                            layoutId="activeTab"
-                                            className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary"
-                                        />
-                                    )}
-                                </button>
-                            ))}
+                    {/* Content Area */}
+                    {loading ? (
+                        <div className="flex flex-col items-center justify-center py-20 gap-3">
+                            <FrogLoader className="text-sky-500" size={32} />
+                            <p className="text-sm text-zinc-500 dark:text-zinc-400 font-medium">Searching the abyss...</p>
                         </div>
-
-                        {loading ? (
-                            <div className="flex flex-col items-center justify-center py-20 gap-3">
-                                <FrogLoader className=" text-primary" size={32} />
-                                <p className="text-sm text-muted-foreground font-medium">Searching the abyss...</p>
-                            </div>
-                        ) : query ? (
-                            <div className="space-y-6">
-                                {activeTab === "posts" ? (
-                                    results.posts.length > 0 ? (
-                                        <div className="space-y-6">
-                                            {results.posts.map(post => (
-                                                <PostCard
-                                                    key={post.id}
-                                                    post={post}
-                                                    onLike={handleLike}
-                                                    onBookmark={handleBookmark}
-                                                    onDelete={handleDelete}
-                                                    onPostEdited={handlePostEdited}
-                                                />
-                                            ))}
-                                        </div>
-                                    ) : (
-                                        <div className="gum-card p-12 text-center text-muted-foreground">
-                                            No echoes found for "{query}"
-                                        </div>
-                                    )
+                    ) : query ? (
+                        <div className="space-y-4">
+                            {activeTab === "posts" ? (
+                                results.posts.length > 0 ? (
+                                    <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 overflow-hidden bg-white dark:bg-black shadow-sm divide-y divide-zinc-200 dark:divide-zinc-800">
+                                        {results.posts.map(post => (
+                                            <PostCard
+                                                key={post.id}
+                                                post={post}
+                                                onLike={handleLike}
+                                                onBookmark={handleBookmark}
+                                                onDelete={handleDelete}
+                                                onPostEdited={handlePostEdited}
+                                            />
+                                        ))}
+                                    </div>
                                 ) : (
-                                    results.profiles.length > 0 ? (
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            {results.profiles.map(profile => (
-                                                <div
-                                                    key={profile.id}
-                                                    onClick={() => navigate(`/u/${profile.username}`)}
-                                                    className="gum-card p-4 flex items-center gap-4 cursor-pointer hover:bg-secondary/50 transition-colors group"
-                                                >
-                                                    <div className="w-12 h-12 rounded-[3px] gum-border bg-secondary overflow-hidden shrink-0">
-                                                        {profile.avatar_url ? (
-                                                            <img src={profile.avatar_url} alt={profile.username} className="w-full h-full object-cover" loading="lazy" />
-                                                        ) : (
-                                                            <div className="w-full h-full flex items-center justify-center font-bold text-lg">
-                                                                {profile.display_name[0].toUpperCase()}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                    <div className="flex-1 min-w-0">
-                                                        <h4 className="font-bold truncate group-hover:underline">{profile.display_name}</h4>
-                                                        <p className="text-xs text-muted-foreground">@{profile.username}</p>
-                                                    </div>
-                                                    {user && user.id !== profile.user_id && (
-                                                        <button
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                navigate(`/whisper/${profile.username}`);
-                                                            }}
-                                                            className="p-2 rounded-[3px] bg-secondary hover:bg-primary hover:text-primary-foreground transition-all gum-border shrink-0"
-                                                            title="Whisper"
-                                                        >
-                                                            <Send size={16} />
-                                                        </button>
+                                    <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 p-12 text-center text-zinc-500 dark:text-zinc-400 text-sm font-medium">
+                                        No echoes found for "{query}"
+                                    </div>
+                                )
+                            ) : (
+                                results.profiles.length > 0 ? (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                        {results.profiles.map(profile => (
+                                            <div
+                                                key={profile.id}
+                                                onClick={() => navigate(`/u/${profile.username}`)}
+                                                className="rounded-2xl border border-zinc-200 dark:border-zinc-800 p-4 flex items-center gap-3.5 cursor-pointer bg-white dark:bg-black hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-all shadow-sm group"
+                                            >
+                                                <div className="w-12 h-12 rounded-full bg-zinc-200 dark:bg-zinc-800 overflow-hidden shrink-0 shadow-sm flex items-center justify-center font-semibold text-zinc-900 dark:text-zinc-100 text-base">
+                                                    {profile.avatar_url ? (
+                                                        <img src={profile.avatar_url} alt={profile.username} className="w-full h-full object-cover" loading="lazy" />
+                                                    ) : (
+                                                        profile.display_name[0].toUpperCase()
                                                     )}
                                                 </div>
-                                            ))}
-                                        </div>
-                                    ) : (
-                                        <div className="gum-card p-12 text-center text-muted-foreground">
-                                            No users found for "{query}"
-                                        </div>
-                                    )
-                                )}
+                                                <div className="flex-1 min-w-0">
+                                                    <h4 className="font-semibold text-sm text-zinc-900 dark:text-zinc-100 truncate group-hover:underline tracking-tight">{profile.display_name}</h4>
+                                                    <p className="text-xs text-zinc-500 dark:text-zinc-400 truncate">@{profile.username}</p>
+                                                </div>
+                                                {user && user.id !== profile.user_id && (
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            navigate(`/whisper/${profile.username}`);
+                                                        }}
+                                                        className="p-2.5 rounded-full bg-zinc-100 dark:bg-zinc-800 hover:bg-sky-500 hover:text-white transition-all shrink-0 text-zinc-600 dark:text-zinc-300 shadow-sm"
+                                                        title="Whisper"
+                                                    >
+                                                        <Send size={15} />
+                                                    </button>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 p-12 text-center text-zinc-500 dark:text-zinc-400 text-sm font-medium">
+                                        No users found for "{query}"
+                                    </div>
+                                )
+                            )}
+                        </div>
+                    ) : (
+                        <div className="rounded-2xl border border-dashed border-zinc-300 dark:border-zinc-800 p-12 text-center flex flex-col items-center gap-4 bg-zinc-50/50 dark:bg-zinc-900/30">
+                            <div className="w-16 h-16 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center shadow-sm">
+                                <SearchIcon size={28} className="text-zinc-400 dark:text-zinc-500" />
                             </div>
-                        ) : (
-                            <div className="gum-card p-12 text-center flex flex-col items-center gap-4 bg-secondary/20 border-dashed">
-                                <div className="w-16 h-16 rounded-[3px] bg-secondary flex items-center justify-center">
-                                    <SearchIcon size={32} className="text-muted-foreground" />
-                                </div>
-                                <div>
-                                    <h3 className="font-bold text-lg">Find what you're looking for</h3>
-                                    <p className="text-sm text-muted-foreground max-w-sm mt-1">
-                                        Search for users, specific keywords, or use #hashtags to find trending topics.
-                                    </p>
-                                </div>
+                            <div>
+                                <h3 className="font-bold text-base text-zinc-900 dark:text-zinc-100 tracking-tight">Find what you're looking for</h3>
+                                <p className="text-sm text-zinc-500 dark:text-zinc-400 max-w-sm mt-1">
+                                    Search for users, specific keywords, or use #hashtags to find trending topics.
+                                </p>
                             </div>
-                        )}
-                    </div>
-
-                    <div className="hidden lg:block lg:sticky lg:top-20 self-start max-h-[calc(100vh-6rem)] overflow-y-auto pr-2 custom-scrollbar">
-                        <Sidebar />
-                    </div>
+                        </div>
+                    )}
                 </div>
             </main>
         </div>

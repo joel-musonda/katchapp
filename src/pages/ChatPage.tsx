@@ -60,8 +60,7 @@ const ChatPage = () => {
             }
         };
         fetchProfile();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [username, navigate]);
+    }, [username, navigate, user]);
 
     const { messages, loadingMessages, sendMessage, isSending, setTyping, isOtherUserTyping } = useWhispers(targetProfile?.user_id);
     const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -75,8 +74,6 @@ const ChatPage = () => {
     }, [messages, isOtherUserTyping]);
 
     useEffect(() => {
-        // Mobile browsers can keep accidental tap-selection during route transitions.
-        // Clear existing ranges once when entering the DM screen.
         const selection = window.getSelection?.();
         if (selection && selection.rangeCount > 0) {
             selection.removeAllRanges();
@@ -146,10 +143,8 @@ const ChatPage = () => {
 
         if (!targetProfile || !user) return;
 
-        // Broadcast typing=true
         setTyping(true);
 
-        // Debounce typing=false
         if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
         typingTimeoutRef.current = setTimeout(() => {
             setTyping(false);
@@ -197,12 +192,10 @@ const ChatPage = () => {
         e.dataTransfer.clearData();
     };
 
-
     const handleSend = async (e: React.FormEvent) => {
         e.preventDefault();
         if ((!messageText.trim() && !selectedImageFile) || isSending || isUploadingImage || !targetProfile) return;
 
-        // Immediately stop typing indicator on send
         if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
         setTyping(false);
 
@@ -226,7 +219,6 @@ const ChatPage = () => {
             if (uploadedPath) {
                 await supabase.storage.from("whisper-media").remove([uploadedPath]).catch(() => { });
             }
-            // Toast handled in hook/upload handlers
         } finally {
             setIsUploadingImage(false);
         }
@@ -235,26 +227,25 @@ const ChatPage = () => {
     if (loadingProfile || loadingMessages) {
         return (
             <div
-                className="min-h-screen bg-background text-foreground flex flex-col items-center justify-center select-none"
+                className="min-h-screen bg-white dark:bg-black text-zinc-900 dark:text-zinc-100 flex flex-col items-center justify-center select-none transition-colors"
                 style={{ WebkitUserSelect: "none", userSelect: "none" }}
             >
-                <FrogLoader className=" text-primary" size={32} />
-                <p className="mt-4 text-sm text-muted-foreground animate-pulse pointer-events-none">Whispering to the abyss...</p>
+                <FrogLoader className="text-sky-500" size={32} />
+                <p className="mt-4 text-sm text-zinc-500 dark:text-zinc-400 animate-pulse pointer-events-none font-medium">Whispering to the abyss...</p>
             </div>
         );
     }
 
     if (!targetProfile) return null;
 
-
     return (
-        <div className="h-[100svh] bg-background text-foreground flex flex-col overflow-hidden">
+        <div className="h-[100svh] bg-white dark:bg-black text-zinc-900 dark:text-zinc-100 flex flex-col overflow-hidden transition-colors">
             <Helmet>
                 <title>Whispering to {targetProfile.display_name} — genjutsu</title>
             </Helmet>
             <div className="shrink-0">
                 <Navbar />
-                <header className="z-40 bg-background/80 backdrop-blur-md border-b-2 border-border shadow-sm">
+                <header className="z-40 bg-white/80 dark:bg-black/80 backdrop-blur-md border-b border-zinc-200 dark:border-zinc-800 shadow-sm">
                     <div className="max-w-4xl mx-auto px-4 h-16 flex items-center justify-between">
                         <div className="flex items-center gap-3">
                             <button
@@ -265,24 +256,25 @@ const ChatPage = () => {
                                         navigate("/whispers");
                                     }
                                 }}
-                                className="p-2 hover:bg-secondary rounded-[3px] transition-colors"
+                                className="p-2.5 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 dark:text-zinc-400 transition-colors border border-zinc-200 dark:border-zinc-800"
+                                title="Go back"
                             >
                                 <ArrowLeft size={18} />
                             </button>
                             <button
                                 type="button"
                                 onClick={() => navigate(`/u/${targetProfile.username}`)}
-                                className="flex items-center gap-2 min-w-0 text-left rounded-[3px] hover:bg-secondary/50 p-1 -m-1 transition-colors"
+                                className="flex items-center gap-3 min-w-0 text-left rounded-2xl hover:bg-zinc-50 dark:hover:bg-zinc-900 p-1.5 -m-1.5 transition-all group"
                                 aria-label={`Open ${targetProfile.display_name}'s profile`}
                             >
-                                <div className="w-10 h-10 rounded-[3px] gum-border bg-secondary flex items-center justify-center font-bold text-sm shrink-0 overflow-hidden">
+                                <div className="w-10 h-10 rounded-full bg-zinc-200 dark:bg-zinc-800 flex items-center justify-center font-bold text-sm shrink-0 overflow-hidden shadow-sm text-zinc-900 dark:text-zinc-100">
                                     {targetProfile.avatar_url ? (
                                         <img src={targetProfile.avatar_url} alt={targetProfile.username} className="w-full h-full object-cover" loading="lazy" />
                                     ) : targetProfile.display_name[0].toUpperCase()}
                                 </div>
                                 <div className="min-w-0">
-                                    <h3 className="font-bold text-sm -mb-0.5 truncate hover:underline">{targetProfile.display_name}</h3>
-                                    <p className="text-[10px] text-muted-foreground truncate">@{targetProfile.username}</p>
+                                    <h3 className="font-semibold text-sm -mb-0.5 truncate group-hover:underline text-zinc-900 dark:text-zinc-100 tracking-tight">{targetProfile.display_name}</h3>
+                                    <p className="text-xs text-zinc-500 dark:text-zinc-400 truncate">@{targetProfile.username}</p>
                                 </div>
                             </button>
                         </div>
@@ -291,12 +283,12 @@ const ChatPage = () => {
             </div>
 
             <main className="flex-1 overflow-y-auto w-full max-w-4xl mx-auto p-4 space-y-4 scrollbar-hide flex flex-col">
-                <div className="flex-1" /> {/* Spacer to push messages to bottom if few */}
+                <div className="flex-1" />
                 {messages && messages.length > 0 ? (
                     messages.map((whisper: Whisper) => {
                         const isMe = whisper.sender_id === user?.id;
                         const hasText = typeof whisper.content === "string" && whisper.content.trim().length > 0;
-                        const readReceiptClass = whisper.is_read ? "text-emerald-400" : "text-gray-300";
+                        const readReceiptClass = whisper.is_read ? "text-emerald-500" : "text-zinc-400 dark:text-zinc-500";
                         return (
                             <motion.div
                                 key={whisper.id}
@@ -304,12 +296,13 @@ const ChatPage = () => {
                                 animate={{ opacity: 1, scale: 1, y: 0 }}
                                 className={`flex ${isMe ? "justify-end" : "justify-start"}`}
                             >
-                                <div className={`max-w-[85%] sm:max-w-[70%] px-4 py-2.5 text-sm border-2 rounded-[3px] gum-shadow-sm ${isMe
-                                    ? "bg-primary text-primary-foreground border-primary"
-                                    : "bg-secondary text-secondary-foreground border-border"
-                                    }`}>
+                                <div className={`max-w-[85%] sm:max-w-[70%] px-4 py-3 text-sm rounded-2xl shadow-sm ${
+                                    isMe
+                                        ? "bg-sky-500 text-white rounded-br-sm"
+                                        : "bg-zinc-100 dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-800 rounded-bl-sm"
+                                }`}>
                                     {hasText ? (
-                                        <p className="whitespace-pre-wrap break-words">
+                                        <p className="whitespace-pre-wrap break-words leading-relaxed">
                                             {linkify(whisper.content)}
                                         </p>
                                     ) : null}
@@ -317,7 +310,7 @@ const ChatPage = () => {
                                         <button
                                             type="button"
                                             onClick={() => setActiveLightboxImageUrl(whisper.media_url)}
-                                            className={`block w-full rounded-[3px] overflow-hidden border border-border/40 cursor-zoom-in ${hasText ? "mt-2" : ""}`}
+                                            className={`block w-full rounded-xl overflow-hidden border border-zinc-200 dark:border-zinc-800 cursor-zoom-in ${hasText ? "mt-2.5" : ""}`}
                                             aria-label="Open whisper image"
                                         >
                                             <DataSaverImage
@@ -329,12 +322,12 @@ const ChatPage = () => {
                                         </button>
                                     ) : null}
                                     {hasText ? <WhisperLinkPreview content={whisper.content} isMe={isMe} /> : null}
-                                    <span className={`text-[9px] mt-1.5 flex items-center gap-1 font-mono ${isMe ? "justify-end text-primary-foreground/70" : "text-muted-foreground"}`}>
-                                        <span className="opacity-60">{new Date(whisper.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                    <span className={`text-[10px] mt-2 flex items-center gap-1.5 font-mono ${isMe ? "justify-end text-white/80" : "text-zinc-500 dark:text-zinc-400"}`}>
+                                        <span className="opacity-70">{new Date(whisper.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                                         {isMe ? (
                                             <CheckCheck
-                                                size={13}
-                                                strokeWidth={3}
+                                                size={14}
+                                                strokeWidth={2.5}
                                                 className={readReceiptClass}
                                                 aria-label={whisper.is_read ? "Viewed" : "Sent"}
                                                 role="img"
@@ -346,8 +339,8 @@ const ChatPage = () => {
                         );
                     })
                 ) : (
-                    <div className="py-20 text-center text-xs text-muted-foreground italic flex flex-col items-center gap-3">
-                        <div className="w-12 h-12 rounded-[3px] border-2 border-dashed border-muted-foreground/30 flex items-center justify-center">
+                    <div className="py-20 text-center text-xs text-zinc-500 dark:text-zinc-400 italic flex flex-col items-center gap-3">
+                        <div className="w-12 h-12 rounded-full border border-dashed border-zinc-300 dark:border-zinc-700 flex items-center justify-center shadow-sm bg-zinc-50 dark:bg-zinc-900">
                             <Send size={16} className="opacity-40" />
                         </div>
                         This conversation is a void. Start whispering now.
@@ -362,13 +355,13 @@ const ChatPage = () => {
                             exit={{ opacity: 0, y: 5 }}
                             className="flex justify-start mb-2"
                         >
-                            <div className="bg-secondary/30 border-2 border-border/50 rounded-[3px] px-3 py-1.5 flex items-center gap-2">
+                            <div className="bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl px-3.5 py-2 flex items-center gap-2.5 shadow-sm">
                                 <div className="flex gap-1">
-                                    <span className="w-1 h-1 bg-primary rounded-full animate-bounce [animation-delay:-0.3s]" />
-                                    <span className="w-1 h-1 bg-primary rounded-full animate-bounce [animation-delay:-0.15s]" />
-                                    <span className="w-1 h-1 bg-primary rounded-full animate-bounce" />
+                                    <span className="w-1.5 h-1.5 bg-sky-500 rounded-full animate-bounce [animation-delay:-0.3s]" />
+                                    <span className="w-1.5 h-1.5 bg-sky-500 rounded-full animate-bounce [animation-delay:-0.15s]" />
+                                    <span className="w-1.5 h-1.5 bg-sky-500 rounded-full animate-bounce" />
                                 </div>
-                                <span className="text-[10px] font-bold text-muted-foreground italic capitalize">
+                                <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400 italic">
                                     {targetProfile.display_name} is whispering...
                                 </span>
                             </div>
@@ -388,7 +381,9 @@ const ChatPage = () => {
                 alt="Whisper image preview"
             />
 
-            <footer className={`shrink-0 bg-background/95 backdrop-blur-md border-t-2 p-4 pb-safe transition-colors ${isDraggingImage ? "border-primary bg-primary/5" : "border-border"}`}>
+            <footer className={`shrink-0 bg-white/95 dark:bg-black/95 backdrop-blur-md border-t p-4 pb-safe transition-colors ${
+                isDraggingImage ? "border-sky-500 bg-sky-500/5" : "border-zinc-200 dark:border-zinc-800"
+            }`}>
                 <form
                     onSubmit={handleSend}
                     onDragEnter={handleComposerDragEnter}
@@ -396,20 +391,20 @@ const ChatPage = () => {
                     onDragLeave={handleComposerDragLeave}
                     onDrop={handleComposerDrop}
                     autoComplete="off"
-                    className="max-w-4xl mx-auto space-y-2.5"
+                    className="max-w-4xl mx-auto space-y-3"
                 >
                     {isDraggingImage ? (
-                        <div className="text-center text-xs font-semibold text-primary py-1">
+                        <div className="text-center text-xs font-semibold text-sky-500 py-1">
                             Drop image to attach to this whisper
                         </div>
                     ) : null}
                     {selectedImagePreviewUrl ? (
-                        <div className="relative w-24 h-24 rounded-[3px] overflow-hidden border-2 border-border">
+                        <div className="relative w-24 h-24 rounded-2xl overflow-hidden border border-zinc-200 dark:border-zinc-800 shadow-sm">
                             <DataSaverImage src={selectedImagePreviewUrl} alt="Selected whisper upload" className="w-full h-full object-cover" />
                             <button
                                 type="button"
                                 onClick={clearSelectedImage}
-                                className="absolute top-1 right-1 p-1 rounded-full bg-background/85 hover:bg-background transition-colors"
+                                className="absolute top-1.5 right-1.5 p-1 rounded-full bg-white/80 dark:bg-black/80 hover:bg-white dark:hover:bg-black transition-colors shadow-sm text-zinc-700 dark:text-zinc-300"
                                 aria-label="Remove selected image"
                             >
                                 <X size={12} />
@@ -417,7 +412,7 @@ const ChatPage = () => {
                         </div>
                     ) : null}
 
-                    <div className="flex gap-3">
+                    <div className="flex gap-3 items-center">
                         <input
                             ref={imageInputRef}
                             type="file"
@@ -429,11 +424,11 @@ const ChatPage = () => {
                         <button
                             type="button"
                             onClick={() => imageInputRef.current?.click()}
-                            className="h-10 w-10 shrink-0 gum-border bg-secondary/60 hover:bg-secondary flex items-center justify-center transition-colors"
+                            className="h-10 w-10 shrink-0 rounded-full bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 flex items-center justify-center transition-all text-zinc-600 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-800 shadow-sm"
                             title="Attach image"
                             aria-label="Attach image"
                         >
-                            <ImageIcon size={16} />
+                            <ImageIcon size={18} />
                         </button>
 
                         <input
@@ -443,7 +438,7 @@ const ChatPage = () => {
                             value={messageText}
                             onChange={handleInputChange}
                             placeholder="Type a whisper... they vanish in 24h"
-                            className="flex-1 bg-secondary/50 gum-border py-2.5 px-4 outline-none focus:border-primary transition-colors text-sm"
+                            className="flex-1 bg-zinc-100/80 dark:bg-zinc-900/80 border border-zinc-200 dark:border-zinc-800 rounded-full py-2.5 px-4 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 transition-all text-sm font-normal text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 shadow-sm"
                             autoComplete="off"
                             autoCorrect="off"
                             autoCapitalize="off"
@@ -453,9 +448,9 @@ const ChatPage = () => {
                         <button
                             type="submit"
                             disabled={(!messageText.trim() && !selectedImageFile) || isSending || isUploadingImage}
-                            className="gum-btn bg-primary text-primary-foreground px-5 h-10 flex items-center gap-2"
+                            className="rounded-full bg-sky-500 hover:bg-sky-600 disabled:opacity-50 disabled:hover:bg-sky-500 text-white px-5 h-10 flex items-center gap-2 font-semibold text-sm transition-all shadow-sm shrink-0"
                         >
-                            {(isSending || isUploadingImage) ? <FrogLoader size={16} className="" /> : <Send size={16} />}
+                            {(isSending || isUploadingImage) ? <FrogLoader size={16} className="text-white" /> : <Send size={16} />}
                             <span className="hidden sm:inline">Whisper</span>
                         </button>
                     </div>
