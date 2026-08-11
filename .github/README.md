@@ -17,6 +17,7 @@
 
 <br />
 
+
 share code, post updates, connect with other builders. no clout chasing. just a daily feed that.
 
 <br />
@@ -36,6 +37,8 @@ most social platforms accumulate posts forever. your late-night takes, half-bake
 
 
 ## contributing
+
+This is project was inspired by the project done by iamovi,  I got the source code and decided to build katchapp on top of it. check it out here: https://github.com/iamovi/genjutsu/
 
 want to contribute? see [CONTRIBUTING.md](CONTRIBUTING.md) for setup and guidelines.
 

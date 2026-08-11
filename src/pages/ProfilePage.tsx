@@ -5,10 +5,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { PostWithProfile } from "@/hooks/usePosts";
 import Navbar from "@/components/Navbar";
 import PostCard from "@/components/PostCard";
-import Sidebar from "@/components/Sidebar";
-import { ArrowLeft, Calendar, ImageIcon, Send, Bookmark, Github, Twitter, Facebook, Globe, Play, Pause, Ban, Share, Upload, Trash2, MessageCircle, Sparkles } from "lucide-react";
+import { Calendar, Send, Bookmark, Github, Twitter, Facebook, Globe, Play, Pause, Ban, Share, Upload, Trash2, MessageCircle, Sparkles } from "lucide-react";
 import { FrogLoader } from "@/components/ui/FrogLoader";
-import { Link } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
@@ -49,6 +47,52 @@ interface ProfileAlbumPhoto {
     storage_path: string;
     created_at: string;
 }
+
+const ProfileLoadingSkeleton = () => (
+    <div className="space-y-6 animate-pulse">
+        {/* Full-width Banner Skeleton */}
+        <div className="w-full h-48 sm:h-72 bg-slate-200 dark:bg-zinc-800" />
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 -mt-16 sm:-mt-24 relative z-10 space-y-6">
+            <div className="bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl border border-slate-200/80 dark:border-zinc-800/80 rounded-[2.5rem] p-6 sm:p-10 shadow-sm">
+                <div className="flex justify-between items-end mb-5">
+                    <div className="w-32 h-32 sm:w-36 sm:h-36 rounded-full border-4 border-white dark:border-zinc-900 bg-slate-300 dark:bg-zinc-700 shadow-xl" />
+                    <div className="flex gap-2">
+                        <div className="w-10 h-10 rounded-full bg-slate-200 dark:bg-zinc-800" />
+                        <div className="w-24 h-10 rounded-full bg-slate-200 dark:bg-zinc-800" />
+                    </div>
+                </div>
+                <div className="space-y-3">
+                    <div className="w-48 h-7 bg-slate-200 dark:bg-zinc-800 rounded-lg" />
+                    <div className="w-28 h-4 bg-slate-200 dark:bg-zinc-800 rounded-md" />
+                </div>
+                <div className="space-y-2 mt-4">
+                    <div className="w-full max-w-md h-4 bg-slate-200 dark:bg-zinc-800 rounded-md" />
+                    <div className="w-3/4 max-w-sm h-4 bg-slate-200 dark:bg-zinc-800 rounded-md" />
+                </div>
+                <div className="flex gap-6 mt-6 pt-5 border-t border-slate-100 dark:border-zinc-800/80">
+                    <div className="w-20 h-4 bg-slate-200 dark:bg-zinc-800 rounded-md" />
+                    <div className="w-20 h-4 bg-slate-200 dark:bg-zinc-800 rounded-md" />
+                </div>
+            </div>
+
+            {/* Album Gallery Skeleton */}
+            <div className="bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl border border-slate-200/80 dark:border-zinc-800/80 rounded-[2.5rem] p-6 sm:p-8 shadow-sm space-y-4">
+                <div className="w-36 h-5 bg-slate-200 dark:bg-zinc-800 rounded-md" />
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                    {[1, 2, 3, 4].map((i) => (
+                        <div key={i} className="aspect-square bg-slate-200 dark:bg-zinc-800 rounded-2xl" />
+                    ))}
+                </div>
+            </div>
+
+            {/* Posts Skeletons */}
+            <div className="space-y-5">
+                <PostSkeleton />
+                <PostSkeleton />
+            </div>
+        </div>
+    </div>
+);
 
 const ProfilePage = () => {
     const { username } = useParams<{ username: string }>();
@@ -559,7 +603,7 @@ const ProfilePage = () => {
         : ["Restricted actions are configured by admin."];
 
     return (
-        <div className="min-h-screen bg-slate-50 dark:bg-black text-slate-900 dark:text-slate-100 font-sans transition-colors selection:bg-sky-500 selection:text-white">
+        <div className="min-h-screen bg-slate-50 dark:bg-black text-slate-900 dark:text-slate-100 font-sans tracking-tight antialiased transition-colors selection:bg-sky-500 selection:text-white">
             {profile && (
                 <Helmet>
                     <title>{profile.display_name} (@{profile.username}) — Katchapp</title>
@@ -570,292 +614,293 @@ const ProfilePage = () => {
                 </Helmet>
             )}
             <Navbar />
-            <main className="max-w-6xl mx-auto px-3 sm:px-4 py-6">
-                <PageTransition className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6">
+
+            {/* Full-width Cover Image Banner */}
+            {!loading && profile && (
+                <div className="w-full h-48 sm:h-72 bg-gradient-to-r from-sky-500/10 via-indigo-500/10 to-purple-500/10 relative overflow-hidden flex items-center justify-center">
+                    {profile.banner_url ? (
+                        <img
+                            src={profile.banner_url}
+                            alt="Banner"
+                            className="w-full h-full object-cover"
+                        />
+                    ) : (
+                        <div className="flex flex-col items-center gap-2 opacity-40 text-sky-600 dark:text-sky-400">
+                            <Sparkles size={36} />
+                            <span className="text-xs font-semibold uppercase tracking-widest">Katchapp Creator</span>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8 relative z-10 -mt-16 sm:-mt-24">
+                <PageTransition className="grid grid-cols-1 gap-8">
                     <div className="space-y-6 min-w-0">
                         {loading ? (
-                            <div className="space-y-6">
-                                <PostSkeleton />
-                                <PostSkeleton />
-                                <PostSkeleton />
-                            </div>
+                            <ProfileLoadingSkeleton />
                         ) : !profile ? (
-                            <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-2xl p-12 text-center text-slate-500 shadow-sm">
+                            <div className="bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl border border-slate-200/80 dark:border-zinc-800/80 rounded-3xl p-12 text-center text-slate-500 shadow-sm">
                                 Profile not found.
                             </div>
                         ) : (
                             <>
-                                <Link
-                                    to="/"
-                                    className="inline-flex items-center gap-2 px-3.5 py-2 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-full text-xs font-semibold text-slate-600 dark:text-zinc-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-zinc-800 transition-all shadow-sm w-fit"
-                                >
-                                    <ArrowLeft size={14} />
-                                    Back to Home
-                                </Link>
-
-                                {/* Modern Profile Header Card */}
-                                <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-3xl overflow-hidden shadow-sm">
-                                    <div className="h-44 sm:h-56 bg-gradient-to-r from-sky-500/20 via-indigo-500/20 to-purple-500/20 relative overflow-hidden flex items-center justify-center">
-                                        {profile.banner_url ? (
-                                            <img
-                                                src={profile.banner_url}
-                                                alt="Banner"
-                                                className="w-full h-full object-cover"
+                                {/* Modern Minimalist Profile Header Card */}
+                                <div className="bg-white/90 dark:bg-zinc-900/90 backdrop-blur-xl border border-slate-200/80 dark:border-zinc-800/80 rounded-[2.5rem] p-6 sm:p-10 shadow-lg transition-all">
+                                    <div className="flex justify-between items-end mb-5">
+                                        <div
+                                            onClick={() => profile.avatar_url && setIsAvatarPreviewOpen(true)}
+                                            className={`w-32 h-32 sm:w-36 sm:h-36 rounded-full border-4 border-white dark:border-zinc-900 bg-white dark:bg-zinc-800 flex items-center justify-center text-3xl sm:text-4xl font-black tracking-tighter shadow-xl overflow-hidden transition-transform hover:scale-105 ${profile.avatar_url ? 'cursor-pointer' : 'cursor-default'}`}
+                                        >
+                                            {profile.avatar_url ? (
+                                                <img src={profile.avatar_url} alt={profile.username} className="w-full h-full object-cover" loading="lazy" />
+                                            ) : initials}
+                                        </div>
+                                        {profile.avatar_url && (
+                                            <ImagePreviewDialog
+                                                src={profile.avatar_url}
+                                                isOpen={isAvatarPreviewOpen}
+                                                onOpenChange={setIsAvatarPreviewOpen}
+                                                alt={`${profile.display_name}'s avatar`}
                                             />
-                                        ) : (
-                                            <div className="flex flex-col items-center gap-2 opacity-30 text-sky-600 dark:text-sky-400">
-                                                <Sparkles size={36} />
-                                                <span className="text-xs font-bold uppercase tracking-widest">Katchapp Network</span>
-                                            </div>
                                         )}
+
+                                        <div className="flex items-center gap-2.5">
+                                            {isOwnProfile ? (
+                                                <div className="flex items-center gap-2.5">
+                                                    <button
+                                                        onClick={handleShareProfile}
+                                                        className="p-3 bg-slate-100/80 dark:bg-zinc-800/80 backdrop-blur-md text-slate-600 dark:text-zinc-300 hover:text-slate-900 dark:hover:text-white rounded-full transition-all border border-slate-200/80 dark:border-zinc-700/80 shadow-sm hover:scale-105"
+                                                        title="Share profile"
+                                                    >
+                                                        <Share size={18} />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => navigate(`/qna/${profile.username}`)}
+                                                        className="px-4 py-3 bg-slate-100/80 dark:bg-zinc-800/80 backdrop-blur-md hover:bg-sky-50 dark:hover:bg-zinc-700/80 text-slate-700 dark:text-zinc-200 rounded-full text-xs font-semibold transition-all border border-slate-200/80 dark:border-zinc-700/80 shadow-sm flex items-center gap-2 hover:scale-105"
+                                                        title="Ask me anything"
+                                                    >
+                                                        <MessageCircle size={15} className="text-sky-500" />
+                                                        Ask me anything
+                                                    </button>
+                                                    <EditProfileDialog
+                                                        currentProfile={{
+                                                            display_name: profile.display_name,
+                                                            bio: profile.bio,
+                                                            avatar_url: profile.avatar_url,
+                                                            banner_url: profile.banner_url,
+                                                            social_links: profile.social_links,
+                                                            fav_song: profile.fav_song
+                                                        }}
+                                                        onUpdate={fetchData}
+                                                    >
+                                                        <button className="px-5 py-3 rounded-full bg-sky-500 hover:bg-sky-600 text-white text-xs font-semibold shadow-md shadow-sky-500/25 transition-all hover:scale-105 flex items-center gap-2">
+                                                            <Sparkles size={14} />
+                                                            Edit Profile
+                                                        </button>
+                                                    </EditProfileDialog>
+                                                </div>
+                                            ) : (
+                                                <div className="flex items-center gap-2.5">
+                                                    <button
+                                                        onClick={() => {
+                                                            if (!user) {
+                                                                toast.error("Please sign in to send messages");
+                                                                return;
+                                                            }
+                                                            navigate(`/whisper/${profile.username}`);
+                                                        }}
+                                                        className="p-3 bg-slate-100/80 dark:bg-zinc-800/80 backdrop-blur-md text-slate-600 dark:text-zinc-300 hover:text-slate-900 dark:hover:text-white rounded-full transition-all border border-slate-200/80 dark:border-zinc-700/80 shadow-sm hover:scale-105"
+                                                        title="Whisper"
+                                                    >
+                                                        <Send size={18} />
+                                                    </button>
+                                                    <button
+                                                        onClick={handleShareProfile}
+                                                        className="p-3 bg-slate-100/80 dark:bg-zinc-800/80 backdrop-blur-md text-slate-600 dark:text-zinc-300 hover:text-slate-900 dark:hover:text-white rounded-full transition-all border border-slate-200/80 dark:border-zinc-700/80 shadow-sm hover:scale-105"
+                                                        title="Share profile"
+                                                    >
+                                                        <Share size={18} />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => navigate(`/qna/${profile.username}`)}
+                                                        className="px-4 py-3 bg-slate-100/80 dark:bg-zinc-800/80 backdrop-blur-md hover:bg-sky-50 dark:hover:bg-zinc-700/80 text-slate-700 dark:text-zinc-200 rounded-full text-xs font-semibold transition-all border border-slate-200/80 dark:border-zinc-700/80 shadow-sm flex items-center gap-2 hover:scale-105"
+                                                        title="Ask me anything"
+                                                    >
+                                                        <MessageCircle size={15} className="text-sky-500" />
+                                                        Ask me anything
+                                                    </button>
+                                                    <button
+                                                        onClick={toggleFollow}
+                                                        className={`px-6 py-3 rounded-full text-xs font-semibold transition-all shadow-md hover:scale-105 ${isFollowing ? 'bg-slate-200 dark:bg-zinc-800 text-slate-800 dark:text-zinc-200 hover:bg-slate-300 dark:hover:bg-zinc-700' : 'bg-sky-500 hover:bg-sky-600 text-white shadow-sky-500/25'}`}
+                                                    >
+                                                        {isFollowing ? 'Following' : 'Follow'}
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
 
-                                    <div className="px-5 sm:px-8 pb-6 relative">
-                                        <div className="flex justify-between items-end -mt-14 sm:-mt-16 mb-4">
-                                            <div
-                                                onClick={() => profile.avatar_url && setIsAvatarPreviewOpen(true)}
-                                                className={`w-28 h-28 sm:w-32 sm:h-32 rounded-full border-4 border-white dark:border-zinc-900 bg-white dark:bg-zinc-800 flex items-center justify-center text-3xl sm:text-4xl font-extrabold shadow-md overflow-hidden transition-transform hover:scale-[1.02] ${profile.avatar_url ? 'cursor-pointer' : 'cursor-default'}`}
-                                            >
-                                                {profile.avatar_url ? (
-                                                    <img src={profile.avatar_url} alt={profile.username} className="w-full h-full object-cover" loading="lazy" />
-                                                ) : initials}
-                                            </div>
-                                            {profile.avatar_url && (
-                                                <ImagePreviewDialog
-                                                    src={profile.avatar_url}
-                                                    isOpen={isAvatarPreviewOpen}
-                                                    onOpenChange={setIsAvatarPreviewOpen}
-                                                    alt={`${profile.display_name}'s avatar`}
-                                                />
-                                            )}
-
-                                            <div className="flex items-center gap-2">
-                                                {isOwnProfile ? (
-                                                    <div className="flex items-center gap-2">
-                                                        <button
-                                                            onClick={handleShareProfile}
-                                                            className="p-2.5 bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 hover:text-slate-900 dark:hover:text-white rounded-full transition-colors border border-slate-200 dark:border-zinc-700 shadow-sm"
-                                                            title="Share profile"
-                                                        >
-                                                            <Share size={18} />
-                                                        </button>
-                                                        <EditProfileDialog
-                                                            currentProfile={{
-                                                                display_name: profile.display_name,
-                                                                bio: profile.bio,
-                                                                avatar_url: profile.avatar_url,
-                                                                banner_url: profile.banner_url,
-                                                                social_links: profile.social_links,
-                                                                fav_song: profile.fav_song
-                                                            }}
-                                                            onUpdate={fetchData}
-                                                        />
-                                                    </div>
-                                                ) : (
-                                                    <div className="flex items-center gap-2">
-                                                        <button
-                                                            onClick={() => {
-                                                                if (!user) {
-                                                                    toast.error("Please sign in to send messages");
-                                                                    return;
-                                                                }
-                                                                navigate(`/whisper/${profile.username}`);
-                                                            }}
-                                                            className="p-2.5 bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 hover:text-slate-900 dark:hover:text-white rounded-full transition-colors border border-slate-200 dark:border-zinc-700 shadow-sm"
-                                                            title="Whisper"
-                                                        >
-                                                            <Send size={18} />
-                                                        </button>
-                                                        <button
-                                                            onClick={handleShareProfile}
-                                                            className="p-2.5 bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 hover:text-slate-900 dark:hover:text-white rounded-full transition-colors border border-slate-200 dark:border-zinc-700 shadow-sm"
-                                                            title="Share profile"
-                                                        >
-                                                            <Share size={18} />
-                                                        </button>
-                                                        <button
-                                                            onClick={toggleFollow}
-                                                            className={`px-5 py-2.5 rounded-full text-sm font-semibold transition-all shadow-sm ${isFollowing ? 'bg-slate-200 dark:bg-zinc-800 text-slate-800 dark:text-zinc-200 hover:bg-slate-300 dark:hover:bg-zinc-700' : 'bg-sky-500 hover:bg-sky-600 text-white'}`}
-                                                        >
-                                                            {isFollowing ? 'Following' : 'Follow'}
-                                                        </button>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        {hasActiveBan && (
-                                            <div className="my-4">
-                                                <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-4 flex items-start gap-3 text-red-600 dark:text-red-400">
-                                                    <div className="bg-red-500 text-white p-2 rounded-xl shrink-0 shadow-sm">
-                                                        <Ban size={18} />
-                                                    </div>
-                                                    <div>
-                                                        <h3 className="text-sm font-bold">Account Restricted</h3>
-                                                        {profile.ban_permanent ? (
-                                                            <p className="text-xs mt-0.5">
-                                                                Ban type: <strong className="font-semibold">Permanent</strong>
-                                                            </p>
-                                                        ) : (
-                                                            <p className="text-xs mt-0.5">
-                                                                Ban type: <strong className="font-semibold">Temporary</strong> until <strong className="font-semibold">{new Date(profile.banned_until as string).toLocaleString()}</strong>.
-                                                            </p>
-                                                        )}
-                                                        {profile.ban_reason && (
-                                                            <p className="text-xs mt-0.5">
-                                                                Reason: <strong className="font-semibold">{profile.ban_reason}</strong>
-                                                            </p>
-                                                        )}
-                                                        <div className="mt-2">
-                                                            <p className="text-xs font-medium">You currently cannot:</p>
-                                                            <ul className="mt-1 text-xs list-disc ml-4 space-y-0.5">
-                                                                {blockedActionsDisplay.map((action) => (
-                                                                    <li key={action}>{action}</li>
-                                                                ))}
-                                                            </ul>
-                                                        </div>
-                                                    </div>
+                                    {hasActiveBan && (
+                                        <div className="my-5">
+                                            <div className="bg-red-500/10 border border-red-500/20 rounded-3xl p-5 flex items-start gap-3.5 text-red-600 dark:text-red-400">
+                                                <div className="bg-red-500 text-white p-2.5 rounded-2xl shrink-0 shadow-md">
+                                                    <Ban size={20} />
                                                 </div>
-                                            </div>
-                                        )}
-
-                                        <div className="space-y-1">
-                                            <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
-                                                {profile.display_name}
-                                            </h1>
-                                            <p className="text-sm text-slate-500 dark:text-zinc-400 font-medium">@{profile.username}</p>
-                                        </div>
-
-                                        <p className="mt-3 text-sm leading-relaxed text-slate-700 dark:text-zinc-300 max-w-2xl whitespace-pre-wrap">
-                                            {profile.bio ? linkify(profile.bio) : "No bio yet."}
-                                        </p>
-
-                                        {profile.social_links && Object.values(profile.social_links).some(link => link) && (
-                                            <div className="flex flex-wrap gap-2.5 mt-4">
-                                                {Object.entries(profile.social_links).map(([platform, link]) => {
-                                                    if (!link) return null;
-
-                                                    const formattedLink = link.startsWith('http') ? link : `https://${link}`;
-                                                    const icons: Record<string, any> = {
-                                                        github: Github,
-                                                        twitter: Twitter,
-                                                        facebook: Facebook,
-                                                        website: Globe
-                                                    };
-                                                    const Icon = icons[platform] || Globe;
-
-                                                    return (
-                                                        <a
-                                                            key={platform}
-                                                            href={formattedLink}
-                                                            target="_blank"
-                                                            rel="noopener noreferrer"
-                                                            className="p-2 bg-slate-100 dark:bg-zinc-800/80 text-slate-600 dark:text-zinc-300 hover:text-sky-500 dark:hover:text-sky-400 rounded-xl transition-all hover:scale-105 border border-slate-200 dark:border-zinc-700/50 flex items-center gap-1.5 text-xs font-medium"
-                                                            title={platform.charAt(0).toUpperCase() + platform.slice(1)}
-                                                        >
-                                                            <Icon size={16} />
-                                                            <span className="capitalize">{platform}</span>
-                                                        </a>
-                                                    );
-                                                })}
-                                            </div>
-                                        )}
-
-                                        {profile.fav_song && (
-                                            <div className="mt-5">
-                                                <div className="inline-flex items-center gap-3 px-4 py-2.5 bg-slate-50 dark:bg-zinc-800/60 border border-slate-200 dark:border-zinc-700 rounded-2xl shadow-sm">
-                                                    <div className="relative group shrink-0">
-                                                        <DataSaverImage
-                                                            src={profile.fav_song.artworkUrl100}
-                                                            className="w-10 h-10 rounded-xl object-cover border border-slate-200 dark:border-zinc-700 animate-spin-slow"
-                                                            style={{ animationPlayState: isPlaying ? 'running' : 'paused' }}
-                                                            alt=""
-                                                        />
-                                                        <button
-                                                            onClick={togglePlay}
-                                                            className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity text-white"
-                                                        >
-                                                            {isPlaying ? <Pause size={14} fill="currentColor" /> : <Play size={14} fill="currentColor" />}
-                                                        </button>
-                                                    </div>
-                                                    <div className="flex flex-col min-w-0">
-                                                        <div className="flex gap-1 items-end h-3 mb-1">
-                                                            {[1, 2, 3, 4, 5].map(i => (
-                                                                <div
-                                                                    key={i}
-                                                                    className={`w-1 bg-sky-500 rounded-full transition-all duration-300 ${isPlaying ? 'animate-music-bar' : 'h-1'}`}
-                                                                    style={{ animationDelay: `${i * 0.15}s` }}
-                                                                />
-                                                            ))}
-                                                        </div>
-                                                        <p className="text-xs font-bold truncate max-w-[240px] text-slate-800 dark:text-zinc-200 flex items-center gap-1.5">
-                                                            {profile.fav_song.trackName}
-                                                            <span className="w-1 h-1 rounded-full bg-slate-400" />
-                                                            <span className="opacity-70 font-normal">{profile.fav_song.artistName}</span>
+                                                <div>
+                                                    <h3 className="text-sm font-bold">Account Restricted</h3>
+                                                    {profile.ban_permanent ? (
+                                                        <p className="text-xs mt-0.5">
+                                                            Ban type: <strong className="font-semibold">Permanent</strong>
                                                         </p>
+                                                    ) : (
+                                                        <p className="text-xs mt-0.5">
+                                                            Ban type: <strong className="font-semibold">Temporary</strong> until <strong className="font-semibold">{new Date(profile.banned_until as string).toLocaleString()}</strong>.
+                                                        </p>
+                                                    )}
+                                                    {profile.ban_reason && (
+                                                        <p className="text-xs mt-0.5">
+                                                            Reason: <strong className="font-semibold">{profile.ban_reason}</strong>
+                                                        </p>
+                                                    )}
+                                                    <div className="mt-2.5">
+                                                        <p className="text-xs font-medium">You currently cannot:</p>
+                                                        <ul className="mt-1 text-xs list-disc ml-4 space-y-0.5">
+                                                            {blockedActionsDisplay.map((action) => (
+                                                                <li key={action}>{action}</li>
+                                                            ))}
+                                                        </ul>
                                                     </div>
                                                 </div>
                                             </div>
-                                        )}
+                                        </div>
+                                    )}
 
-                                        <div className="flex flex-wrap items-center gap-6 mt-5 text-xs text-slate-500 dark:text-zinc-400">
-                                            <div className="flex items-center gap-1.5">
-                                                <Calendar size={15} />
-                                                <span>Joined {new Date(profile.created_at).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</span>
+                                    <div className="space-y-1">
+                                        <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">
+                                            {profile.display_name}
+                                        </h1>
+                                        <p className="text-sm font-medium text-sky-600 dark:text-sky-400">@{profile.username}</p>
+                                    </div>
+
+                                    <p className="mt-4 text-sm leading-relaxed text-slate-600 dark:text-zinc-300 max-w-2xl whitespace-pre-wrap font-normal">
+                                        {profile.bio ? linkify(profile.bio) : "No bio yet."}
+                                    </p>
+
+                                    {profile.social_links && Object.values(profile.social_links).some(link => link) && (
+                                        <div className="flex flex-wrap gap-2.5 mt-5">
+                                            {Object.entries(profile.social_links).map(([platform, link]) => {
+                                                if (!link) return null;
+
+                                                const formattedLink = link.startsWith('http') ? link : `https://${link}`;
+                                                const icons: Record<string, any> = {
+                                                    github: Github,
+                                                    twitter: Twitter,
+                                                    facebook: Facebook,
+                                                    website: Globe
+                                                };
+                                                const Icon = icons[platform] || Globe;
+
+                                                return (
+                                                    <a
+                                                        key={platform}
+                                                        href={formattedLink}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="px-3 py-2 bg-slate-100/80 dark:bg-zinc-800/80 text-slate-600 dark:text-zinc-300 hover:text-sky-500 dark:hover:text-sky-400 rounded-xl transition-all hover:scale-105 border border-slate-200/80 dark:border-zinc-700/50 flex items-center gap-2 text-xs font-semibold shadow-sm"
+                                                        title={platform.charAt(0).toUpperCase() + platform.slice(1)}
+                                                    >
+                                                        <Icon size={16} />
+                                                        <span className="capitalize">{platform}</span>
+                                                    </a>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+
+                                    {profile.fav_song && (
+                                        <div className="mt-6">
+                                            <div className="inline-flex items-center gap-3.5 px-4 py-3 bg-slate-50 dark:bg-zinc-800/50 backdrop-blur-md border border-slate-200/80 dark:border-zinc-700/80 rounded-2xl shadow-sm">
+                                                <div className="relative group shrink-0">
+                                                    <DataSaverImage
+                                                        src={profile.fav_song.artworkUrl100}
+                                                        className="w-11 h-11 rounded-xl object-cover border border-slate-200 dark:border-zinc-700 animate-spin-slow"
+                                                        style={{ animationPlayState: isPlaying ? 'running' : 'paused' }}
+                                                        alt=""
+                                                    />
+                                                    <button
+                                                        onClick={togglePlay}
+                                                        className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity text-white"
+                                                    >
+                                                        {isPlaying ? <Pause size={14} fill="currentColor" /> : <Play size={14} fill="currentColor" />}
+                                                    </button>
+                                                </div>
+                                                <div className="flex flex-col min-w-0">
+                                                    <div className="flex gap-1 items-end h-3 mb-1">
+                                                        {[1, 2, 3, 4, 5].map(i => (
+                                                            <div
+                                                                key={i}
+                                                                className={`w-1 bg-sky-500 rounded-full transition-all duration-300 ${isPlaying ? 'animate-music-bar' : 'h-1'}`}
+                                                                style={{ animationDelay: `${i * 0.15}s` }}
+                                                            />
+                                                        ))}
+                                                    </div>
+                                                    <p className="text-xs font-bold truncate max-w-[240px] text-slate-800 dark:text-zinc-200 flex items-center gap-1.5">
+                                                        {profile.fav_song.trackName}
+                                                        <span className="w-1 h-1 rounded-full bg-slate-400" />
+                                                        <span className="opacity-70 font-normal">{profile.fav_song.artistName}</span>
+                                                    </p>
+                                                </div>
                                             </div>
                                         </div>
+                                    )}
 
-                                        <div className="flex items-center gap-6 mt-4 pt-4 border-t border-slate-100 dark:border-zinc-800">
-                                            <button
-                                                onClick={() => {
-                                                    setFollowsModalType("following");
-                                                    setFollowsModalOpen(true);
-                                                }}
-                                                className="hover:opacity-80 flex items-center gap-1.5 text-sm"
-                                            >
-                                                <span className="font-bold text-slate-900 dark:text-white">{stats.following}</span>
-                                                <span className="text-slate-500 dark:text-zinc-400">Following</span>
-                                            </button>
-                                            <button
-                                                onClick={() => {
-                                                    setFollowsModalType("followers");
-                                                    setFollowsModalOpen(true);
-                                                }}
-                                                className="hover:opacity-80 flex items-center gap-1.5 text-sm"
-                                            >
-                                                <span className="font-bold text-slate-900 dark:text-white">{stats.followers}</span>
-                                                <span className="text-slate-500 dark:text-zinc-400">Followers</span>
-                                            </button>
+                                    <div className="flex flex-wrap items-center gap-6 mt-6 text-xs font-medium text-slate-500 dark:text-zinc-400">
+                                        <div className="flex items-center gap-2">
+                                            <Calendar size={16} />
+                                            <span>Joined {new Date(profile.created_at).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</span>
                                         </div>
+                                    </div>
 
-                                        <div className="mt-4 pt-2">
-                                            <button
-                                                onClick={() => navigate(`/qna/${profile.username}`)}
-                                                className="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 dark:bg-zinc-800 hover:bg-sky-50 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-200 rounded-xl text-xs font-semibold transition-all border border-slate-200 dark:border-zinc-700 shadow-sm"
-                                            >
-                                                <MessageCircle size={15} className="text-sky-500" />
-                                                Ask me anything
-                                            </button>
-                                        </div>
+                                    <div className="flex items-center gap-6 mt-5 pt-5 border-t border-slate-100 dark:border-zinc-800/80">
+                                        <button
+                                            onClick={() => {
+                                                setFollowsModalType("following");
+                                                setFollowsModalOpen(true);
+                                            }}
+                                            className="hover:opacity-80 flex items-center gap-1.5 text-sm transition-opacity"
+                                        >
+                                            <span className="font-extrabold text-slate-900 dark:text-white">{stats.following}</span>
+                                            <span className="text-slate-500 dark:text-zinc-400 font-medium">Following</span>
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                setFollowsModalType("followers");
+                                                setFollowsModalOpen(true);
+                                            }}
+                                            className="hover:opacity-80 flex items-center gap-1.5 text-sm transition-opacity"
+                                        >
+                                            <span className="font-extrabold text-slate-900 dark:text-white">{stats.followers}</span>
+                                            <span className="text-slate-500 dark:text-zinc-400 font-medium">Followers</span>
+                                        </button>
                                     </div>
                                 </div>
 
                                 {/* Album Section */}
-                                <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-3xl p-5 sm:p-6 shadow-sm">
+                                <div className="bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl border border-slate-200/80 dark:border-zinc-800/80 rounded-[2.5rem] p-6 sm:p-8 shadow-sm">
                                     <div className="flex flex-wrap items-center justify-between gap-3">
                                         <div>
-                                            <h2 className="text-base font-bold text-slate-900 dark:text-white">Album Gallery</h2>
-                                            <p className="text-xs text-slate-500 dark:text-zinc-400">
+                                            <h2 className="text-lg font-bold tracking-tight text-slate-900 dark:text-white">Album Gallery</h2>
+                                            <p className="text-xs text-slate-500 dark:text-zinc-400 font-medium">
                                                 Persistent showcase photos.
                                             </p>
                                         </div>
-                                        <span className="text-xs font-bold px-2.5 py-1 bg-slate-100 dark:bg-zinc-800 rounded-full text-slate-600 dark:text-zinc-300">
+                                        <span className="text-xs font-bold px-3 py-1 bg-slate-100 dark:bg-zinc-800 rounded-full text-slate-600 dark:text-zinc-300">
                                             {albumPhotos.length}/5
                                         </span>
                                     </div>
 
                                     {isOwnProfile && (
-                                        <div className="mt-4">
+                                        <div className="mt-5">
                                             <input
                                                 ref={albumInputRef}
                                                 type="file"
@@ -866,7 +911,7 @@ const ProfilePage = () => {
                                             <button
                                                 onClick={() => albumInputRef.current?.click()}
                                                 disabled={albumUploading || albumPhotos.length >= 5}
-                                                className="inline-flex items-center gap-2 px-4 py-2 bg-sky-500 hover:bg-sky-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl text-xs font-semibold transition-all shadow-sm"
+                                                className="inline-flex items-center gap-2 px-5 py-2.5 bg-sky-500 hover:bg-sky-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl text-xs font-semibold transition-all shadow-sm shadow-sky-500/20"
                                             >
                                                 {albumUploading ? <FrogLoader className="" size={16} /> : <Upload size={15} />}
                                                 {albumPhotos.length >= 5 ? "Album Full (5/5)" : "Upload Photo"}
@@ -875,15 +920,15 @@ const ProfilePage = () => {
                                     )}
 
                                     {albumPhotos.length === 0 ? (
-                                        <div className="mt-4 border border-dashed border-slate-200 dark:border-zinc-800 rounded-2xl p-8 text-center text-xs text-slate-400">
+                                        <div className="mt-5 border border-dashed border-slate-200 dark:border-zinc-800 rounded-2xl p-8 text-center text-xs text-slate-400 font-medium">
                                             No album photos yet.
                                         </div>
                                     ) : (
-                                        <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                                        <div className="mt-5 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
                                             {albumPhotos.map((photo) => {
                                                 const isDeleting = albumDeletingIds.has(photo.id);
                                                 return (
-                                                    <div key={photo.id} className="relative group rounded-2xl overflow-hidden border border-slate-200 dark:border-zinc-800 aspect-square">
+                                                    <div key={photo.id} className="relative group rounded-2xl overflow-hidden border border-slate-200/80 dark:border-zinc-800 aspect-square shadow-sm">
                                                         <button
                                                             onClick={() => openAlbumPreview(photo.photo_url)}
                                                             className="w-full h-full hover:opacity-95 transition-opacity"
@@ -899,7 +944,7 @@ const ProfilePage = () => {
                                                             <button
                                                                 onClick={() => handleAlbumDelete(photo)}
                                                                 disabled={isDeleting}
-                                                                className="absolute top-2 right-2 p-1.5 rounded-xl bg-black/60 backdrop-blur-md text-white hover:bg-black/80 transition-colors disabled:opacity-60 shadow-sm"
+                                                                className="absolute top-2.5 right-2.5 p-2 rounded-xl bg-black/60 backdrop-blur-md text-white hover:bg-black/80 transition-colors disabled:opacity-60 shadow-sm"
                                                                 title="Delete photo"
                                                             >
                                                                 {isDeleting ? <FrogLoader className="" size={14} /> : <Trash2 size={14} />}
@@ -913,33 +958,33 @@ const ProfilePage = () => {
                                 </div>
 
                                 {/* Tabs & Posts */}
-                                <div className="space-y-4">
+                                <div className="space-y-5">
                                     {isOwnProfile ? (
-                                        <div className="flex border-b border-slate-200 dark:border-zinc-800">
+                                        <div className="flex border-b border-slate-200 dark:border-zinc-800/80">
                                             {(["posts", "bookmarks"] as const).map((tab) => (
                                                 <button
                                                     key={tab}
                                                     onClick={() => setActiveTab(tab)}
-                                                    className={`flex-1 sm:flex-none px-6 py-3 text-sm font-semibold capitalize transition-all relative flex items-center justify-center gap-2 ${activeTab === tab ? "text-sky-500 dark:text-sky-400" : "text-slate-500 hover:text-slate-900 dark:hover:text-white"}`}
+                                                    className={`flex-1 sm:flex-none px-6 py-3.5 text-sm font-semibold capitalize transition-all relative flex items-center justify-center gap-2 ${activeTab === tab ? "text-sky-500 dark:text-sky-400" : "text-slate-500 hover:text-slate-900 dark:hover:text-white"}`}
                                                 >
                                                     {tab === "bookmarks" && <Bookmark size={15} />}
                                                     {tab}
                                                     {activeTab === tab && (
                                                         <motion.div
                                                             layoutId="profileTab"
-                                                            className="absolute bottom-0 left-0 right-0 h-0.5 bg-sky-500"
+                                                            className="absolute bottom-0 left-0 right-0 h-0.5 bg-sky-500 rounded-full"
                                                         />
                                                     )}
                                                 </button>
                                             ))}
                                         </div>
                                     ) : (
-                                        <h2 className="font-bold text-base px-1 text-slate-900 dark:text-white">Posts</h2>
+                                        <h2 className="font-bold text-lg tracking-tight px-1 text-slate-900 dark:text-white">Posts</h2>
                                     )}
 
                                     {activeTab === "posts" ? (
                                         posts.length === 0 ? (
-                                            <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-2xl p-12 text-center text-slate-400 text-sm shadow-sm">
+                                            <div className="bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl border border-slate-200/80 dark:border-zinc-800/80 rounded-3xl p-12 text-center text-slate-400 text-sm font-medium shadow-sm">
                                                 No posts yet.
                                             </div>
                                         ) : (
@@ -961,13 +1006,13 @@ const ProfilePage = () => {
                                         )
                                     ) : (
                                         bookmarks.length === 0 ? (
-                                            <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-2xl p-12 text-center flex flex-col items-center gap-3 shadow-sm">
+                                            <div className="bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl border border-slate-200/80 dark:border-zinc-800/80 rounded-3xl p-12 text-center flex flex-col items-center gap-3 shadow-sm">
                                                 <div className="w-14 h-14 rounded-2xl bg-sky-500/10 flex items-center justify-center text-sky-500">
                                                     <Bookmark size={28} />
                                                 </div>
                                                 <div>
-                                                    <h3 className="font-bold text-base text-slate-900 dark:text-white">No bookmarks yet</h3>
-                                                    <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
+                                                    <h3 className="font-bold text-base tracking-tight text-slate-900 dark:text-white">No bookmarks yet</h3>
+                                                    <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5 font-medium">
                                                         Save posts to find them later.
                                                     </p>
                                                 </div>
@@ -993,10 +1038,6 @@ const ProfilePage = () => {
                                 </div>
                             </>
                         )}
-                    </div>
-
-                    <div className="hidden lg:block lg:sticky lg:top-20 self-start max-h-[calc(100vh-6rem)] overflow-y-auto pr-1 custom-scrollbar">
-                        <Sidebar />
                     </div>
                 </PageTransition>
             </main>

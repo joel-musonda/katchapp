@@ -3,7 +3,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/hooks/useProfile";
 import { supabase } from "@/integrations/supabase/client";
 import Navbar from "@/components/Navbar";
-import { LogOut, ArrowLeft, Shield, Settings, Check, AtSign, Globe, Palette, Moon, Sun, Monitor, Pipette, WandSparkles, Sparkles, Music, Volume2, VolumeX, Clock, Lock, Eye, EyeOff, ImageOff, KeyRound, Layout, Type, Square, Grid, Bell, BellOff, Smile } from "lucide-react";
+import { LogOut, Shield, Settings, Check, AtSign, Globe, Palette, Moon, Sun, Monitor, Pipette, WandSparkles, Sparkles, Music, Volume2, VolumeX, Clock, Lock, Eye, EyeOff, ImageOff, KeyRound, Layout, Type, Square, Grid, Bell, BellOff, Smile } from "lucide-react";
 import { FrogLoader } from "@/components/ui/FrogLoader";
 import { motion, AnimatePresence } from "framer-motion";
 import { Helmet } from "react-helmet-async";
@@ -58,6 +58,10 @@ const SettingsPage = () => {
     const { t, i18n } = useTranslation();
     const { theme, preset, color, customColor, font, radius, emojiPack, animateColor, cursorTrail, grid, dataSaver, soundEnabled, shadowWalk, setTheme, setPreset, setColor, setCustomColor, setFont, setRadius, setEmojiPack, setAnimateColor, setCursorTrail, setGrid, setDataSaver, setSoundEnabled, setShadowWalk } = useTheme();
     const pushNotifications = usePushNotifications();
+    
+    // Skeleton loader state
+    const [isLoading, setIsLoading] = useState(true);
+
     const [mfaStatusLoading, setMfaStatusLoading] = useState(false);
     const [mfaStatusReady, setMfaStatusReady] = useState(false);
     const [mfaStatusError, setMfaStatusError] = useState<string | null>(null);
@@ -100,6 +104,14 @@ const SettingsPage = () => {
 
     const [dangerUnlockedSession, setDangerUnlockedSession] = useState(false);
     const [dangerTimeLeft, setDangerTimeLeft] = useState<number>(0);
+
+    // Simulate initial skeleton loading
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setIsLoading(false);
+        }, 600);
+        return () => clearTimeout(timer);
+    }, []);
 
     const getDangerLockTime = useCallback(() => {
         if (!user) return 0;
@@ -147,7 +159,6 @@ const SettingsPage = () => {
         return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
     };
 
-    // Initialize input with current username
     useEffect(() => {
         if (profile?.username) {
             setNewUsername(profile.username);
@@ -158,16 +169,14 @@ const SettingsPage = () => {
         setNewEmail(user?.email ?? "");
     }, [user?.email]);
 
-    // Handle session expiration or manual logout
     useEffect(() => {
         if (!user) {
             navigate("/auth");
         }
     }, [user, navigate]);
 
-    // Preload available fonts to ensure preview buttons render them correctly
     useEffect(() => {
-        const fonts = ['Inter', 'Space Grotesk', 'Fira Code', 'JetBrains Mono', 'Comic Neue'];
+        const fonts = ['Inter', 'Space Grotesk', 'Fira Code', 'JetBrains Mono', 'Comic Neue', 'Reddit Mono'];
         fonts.forEach(f => {
             const fontName = f.replace(/ /g, "+");
             const linkId = `preview-font-${fontName}`;
@@ -248,9 +257,9 @@ const SettingsPage = () => {
         if (nextPreset === "default") {
             setColor("purple");
             setCustomColor("#8b5cf6");
-            setFont("Reddit Mono");
+            setFont("Inter");
             setRadius("default");
-            setGrid("blueprint");
+            setGrid("none");
             return;
         }
 
@@ -293,7 +302,6 @@ const SettingsPage = () => {
             setGrid("none");
             return;
         }
-
 
         if (nextPreset === "gameboy") {
             setColor("custom");
@@ -487,7 +495,6 @@ const SettingsPage = () => {
         }
     };
 
-
     const validateEmail = (value: string): string | null => {
         const normalized = value.trim();
         if (!normalized) return "Email is required";
@@ -573,34 +580,52 @@ const SettingsPage = () => {
     const canSave = isUsernameChanged && !usernameError && !isSaving && !isOnCooldown;
 
     return (
-        <div className="min-h-screen bg-background text-foreground">
+        <div className="h-screen w-screen flex flex-col bg-background text-foreground overflow-hidden">
             <Helmet>
                 <title>{t("settings.title")} — genjutsu</title>
             </Helmet>
             <Navbar />
-            <main className="max-w-4xl mx-auto px-4 py-8">
-                <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="space-y-6"
-                >
-                    <div className="flex items-center gap-4 mb-8">
-                        <button
-                            onClick={() => navigate("/")}
-                            className="p-2 gum-card bg-secondary text-muted-foreground hover:text-foreground transition-colors"
-                        >
-                            <ArrowLeft size={20} />
-                        </button>
-                        <h1 className="text-3xl font-bold tracking-tight">{t("settings.title")}</h1>
-                    </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-[240px_1fr] gap-8">
-                        <aside className="space-y-1">
+            {/* Main Full-Screen Dashboard Container */}
+            <main className="flex-1 w-full max-w-7xl mx-auto px-4 lg:px-8 py-6 flex flex-col overflow-hidden">
+                {/* Modern Dashboard Header */}
+                <div className="flex items-center justify-between pb-6 border-b border-border mb-6 shrink-0">
+                    <div>
+                        <h1 className="text-2xl lg:text-3xl font-extrabold tracking-tight">{t("settings.title")}</h1>
+                        <p className="text-sm text-muted-foreground mt-1">Manage your preferences, account security, and dashboard experience.</p>
+                    </div>
+                </div>
+
+                {isLoading ? (
+                    /* Refined Skeleton Loader State */
+                    <div className="flex-1 grid grid-cols-1 md:grid-cols-[260px_1fr] gap-8 overflow-hidden pb-6">
+                        <div className="space-y-2">
+                            {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((i) => (
+                                <div key={i} className="h-10 w-full bg-muted/40 animate-pulse rounded-[3px]" />
+                            ))}
+                        </div>
+                        <div className="space-y-6 overflow-y-auto pr-2">
+                            <div className="gum-card p-6 space-y-4">
+                                <div className="h-6 w-40 bg-muted/60 animate-pulse rounded-[3px]" />
+                                <div className="h-20 w-full bg-muted/40 animate-pulse rounded-[3px]" />
+                                <div className="h-10 w-32 bg-muted/60 animate-pulse rounded-[3px]" />
+                            </div>
+                            <div className="gum-card p-6 space-y-4">
+                                <div className="h-6 w-48 bg-muted/60 animate-pulse rounded-[3px]" />
+                                <div className="h-16 w-full bg-muted/40 animate-pulse rounded-[3px]" />
+                            </div>
+                        </div>
+                    </div>
+                ) : (
+                    /* Dashboard Grid Content */
+                    <div className="flex-1 grid grid-cols-1 md:grid-cols-[260px_1fr] gap-8 overflow-hidden pb-6">
+                        {/* Sidebar Navigation */}
+                        <aside className="space-y-1.5 overflow-y-auto pr-1 shrink-0">
                             <button
                                 onClick={() => setActiveTab("general")}
-                                className={`w-full flex items-center gap-3 px-4 py-3 rounded-[3px] text-sm transition-all ${activeTab === "general"
-                                    ? "bg-primary text-primary-foreground font-bold gum-shadow-sm"
-                                    : "hover:bg-secondary text-muted-foreground hover:text-foreground font-medium"
+                                className={`w-full flex items-center gap-3 px-4 py-3 rounded-[3px] text-sm font-semibold transition-all ${activeTab === "general"
+                                    ? "bg-primary text-primary-foreground gum-shadow-sm"
+                                    : "hover:bg-secondary text-muted-foreground hover:text-foreground"
                                     }`}
                             >
                                 <Settings size={18} />
@@ -608,9 +633,9 @@ const SettingsPage = () => {
                             </button>
                             <button
                                 onClick={() => setActiveTab("notifications")}
-                                className={`w-full flex items-center gap-3 px-4 py-3 rounded-[3px] text-sm transition-all ${activeTab === "notifications"
-                                    ? "bg-primary text-primary-foreground font-bold gum-shadow-sm"
-                                    : "hover:bg-secondary text-muted-foreground hover:text-foreground font-medium"
+                                className={`w-full flex items-center gap-3 px-4 py-3 rounded-[3px] text-sm font-semibold transition-all ${activeTab === "notifications"
+                                    ? "bg-primary text-primary-foreground gum-shadow-sm"
+                                    : "hover:bg-secondary text-muted-foreground hover:text-foreground"
                                     }`}
                             >
                                 <Bell size={18} />
@@ -618,9 +643,9 @@ const SettingsPage = () => {
                             </button>
                             <button
                                 onClick={() => setActiveTab("theme")}
-                                className={`w-full flex items-center gap-3 px-4 py-3 rounded-[3px] text-sm transition-all ${activeTab === "theme"
-                                    ? "bg-primary text-primary-foreground font-bold gum-shadow-sm"
-                                    : "hover:bg-secondary text-muted-foreground hover:text-foreground font-medium"
+                                className={`w-full flex items-center gap-3 px-4 py-3 rounded-[3px] text-sm font-semibold transition-all ${activeTab === "theme"
+                                    ? "bg-primary text-primary-foreground gum-shadow-sm"
+                                    : "hover:bg-secondary text-muted-foreground hover:text-foreground"
                                     }`}
                             >
                                 <Sparkles size={18} />
@@ -628,9 +653,9 @@ const SettingsPage = () => {
                             </button>
                             <button
                                 onClick={() => setActiveTab("appearance")}
-                                className={`w-full flex items-center gap-3 px-4 py-3 rounded-[3px] text-sm transition-all ${activeTab === "appearance"
-                                    ? "bg-primary text-primary-foreground font-bold gum-shadow-sm"
-                                    : "hover:bg-secondary text-muted-foreground hover:text-foreground font-medium"
+                                className={`w-full flex items-center gap-3 px-4 py-3 rounded-[3px] text-sm font-semibold transition-all ${activeTab === "appearance"
+                                    ? "bg-primary text-primary-foreground gum-shadow-sm"
+                                    : "hover:bg-secondary text-muted-foreground hover:text-foreground"
                                     }`}
                             >
                                 <Palette size={18} />
@@ -638,9 +663,9 @@ const SettingsPage = () => {
                             </button>
                             <button
                                 onClick={() => setActiveTab("data")}
-                                className={`w-full flex items-center gap-3 px-4 py-3 rounded-[3px] text-sm transition-all ${activeTab === "data"
-                                    ? "bg-primary text-primary-foreground font-bold gum-shadow-sm"
-                                    : "hover:bg-secondary text-muted-foreground hover:text-foreground font-medium"
+                                className={`w-full flex items-center gap-3 px-4 py-3 rounded-[3px] text-sm font-semibold transition-all ${activeTab === "data"
+                                    ? "bg-primary text-primary-foreground gum-shadow-sm"
+                                    : "hover:bg-secondary text-muted-foreground hover:text-foreground"
                                     }`}
                             >
                                 <ImageOff size={18} />
@@ -648,9 +673,9 @@ const SettingsPage = () => {
                             </button>
                             <button
                                 onClick={() => setActiveTab("audio")}
-                                className={`w-full flex items-center gap-3 px-4 py-3 rounded-[3px] text-sm transition-all ${activeTab === "audio"
-                                    ? "bg-primary text-primary-foreground font-bold gum-shadow-sm"
-                                    : "hover:bg-secondary text-muted-foreground hover:text-foreground font-medium"
+                                className={`w-full flex items-center gap-3 px-4 py-3 rounded-[3px] text-sm font-semibold transition-all ${activeTab === "audio"
+                                    ? "bg-primary text-primary-foreground gum-shadow-sm"
+                                    : "hover:bg-secondary text-muted-foreground hover:text-foreground"
                                     }`}
                             >
                                 <Music size={18} />
@@ -658,9 +683,9 @@ const SettingsPage = () => {
                             </button>
                             <button
                                 onClick={() => setActiveTab("security")}
-                                className={`w-full flex items-center gap-3 px-4 py-3 rounded-[3px] text-sm transition-all ${activeTab === "security"
-                                    ? "bg-primary text-primary-foreground font-bold gum-shadow-sm"
-                                    : "hover:bg-secondary text-muted-foreground hover:text-foreground font-medium"
+                                className={`w-full flex items-center gap-3 px-4 py-3 rounded-[3px] text-sm font-semibold transition-all ${activeTab === "security"
+                                    ? "bg-primary text-primary-foreground gum-shadow-sm"
+                                    : "hover:bg-secondary text-muted-foreground hover:text-foreground"
                                     }`}
                             >
                                 <KeyRound size={18} />
@@ -668,9 +693,9 @@ const SettingsPage = () => {
                             </button>
                             <button
                                 onClick={() => setActiveTab("language")}
-                                className={`w-full flex items-center gap-3 px-4 py-3 rounded-[3px] text-sm transition-all ${activeTab === "language"
-                                    ? "bg-primary text-primary-foreground font-bold gum-shadow-sm"
-                                    : "hover:bg-secondary text-muted-foreground hover:text-foreground font-medium"
+                                className={`w-full flex items-center gap-3 px-4 py-3 rounded-[3px] text-sm font-semibold transition-all ${activeTab === "language"
+                                    ? "bg-primary text-primary-foreground gum-shadow-sm"
+                                    : "hover:bg-secondary text-muted-foreground hover:text-foreground"
                                     }`}
                             >
                                 <Globe size={18} />
@@ -678,9 +703,9 @@ const SettingsPage = () => {
                             </button>
                             <button
                                 onClick={handleDangerClick}
-                                className={`w-full flex items-center gap-3 px-4 py-3 rounded-[3px] text-sm transition-all ${activeTab === "danger"
-                                    ? "bg-destructive text-destructive-foreground font-bold gum-shadow-sm"
-                                    : "hover:bg-destructive/10 text-muted-foreground hover:text-destructive font-medium"
+                                className={`w-full flex items-center gap-3 px-4 py-3 rounded-[3px] text-sm font-semibold transition-all ${activeTab === "danger"
+                                    ? "bg-destructive text-destructive-foreground gum-shadow-sm"
+                                    : "hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
                                     }`}
                             >
                                 <Shield size={18} />
@@ -688,7 +713,8 @@ const SettingsPage = () => {
                             </button>
                         </aside>
 
-                        <div className="space-y-6">
+                        {/* Main Scrollable Content Area */}
+                        <div className="overflow-y-auto pr-2 space-y-6">
                             <AnimatePresence mode="wait">
                                 {activeTab === "general" && (
                                     <motion.div
@@ -699,7 +725,6 @@ const SettingsPage = () => {
                                         transition={{ duration: 0.2 }}
                                         className="space-y-6"
                                     >
-                                        {/* Account Info */}
                                         <section className="gum-card p-6 space-y-6">
                                             <div>
                                                 <h2 className="text-lg font-bold mb-4">{t("settings.account")}</h2>
@@ -717,7 +742,6 @@ const SettingsPage = () => {
                                                 </div>
                                             </div>
 
-                                            {/* Change Username */}
                                             <div className="pt-6 border-t border-border">
                                                 <h2 className="text-lg font-bold mb-1">{t("settings.changeUsername")}</h2>
                                                 <p className="text-sm text-muted-foreground mb-4">
@@ -774,14 +798,8 @@ const SettingsPage = () => {
                                                 {isUsernameChanged && !usernameError && (
                                                     <p className="text-xs text-green-500 mt-2 font-medium">Looks good!</p>
                                                 )}
-                                                <p className="text-[11px] text-muted-foreground mt-2">
-                                                    3–20 characters. Lowercase letters, numbers, and underscores only.
-                                                </p>
                                             </div>
 
-
-
-                                            {/* Log Out Section */}
                                             <div className="pt-6 border-t border-border">
                                                 <h2 className="text-lg font-bold mb-1">{t("settings.exitSession")}</h2>
                                                 <p className="text-sm text-muted-foreground mb-4">
@@ -815,60 +833,25 @@ const SettingsPage = () => {
                                                     {t("settings.languageDesc")}
                                                 </p>
                                                 <div className="flex flex-wrap gap-3">
-                                                    <button
-                                                        onClick={() => i18n.changeLanguage('en')}
-                                                        className={`gum-btn px-6 py-2.5 text-sm font-bold transition-colors ${i18n.language.startsWith('en') ? 'bg-primary text-primary-foreground gum-shadow-sm' : 'bg-background hover:bg-secondary text-foreground'}`}
-                                                    >
-                                                        English
-                                                    </button>
-                                                    <button
-                                                        onClick={() => i18n.changeLanguage('bn')}
-                                                        className={`gum-btn px-6 py-2.5 text-sm font-bold transition-colors ${i18n.language.startsWith('bn') ? 'bg-primary text-primary-foreground gum-shadow-sm' : 'bg-background hover:bg-secondary text-foreground'}`}
-                                                    >
-                                                        বাংলা
-                                                    </button>
-                                                    <button
-                                                        onClick={() => i18n.changeLanguage('ja')}
-                                                        className={`gum-btn px-6 py-2.5 text-sm font-bold transition-colors ${i18n.language.startsWith('ja') ? 'bg-primary text-primary-foreground gum-shadow-sm' : 'bg-background hover:bg-secondary text-foreground'}`}
-                                                    >
-                                                        日本語
-                                                    </button>
-                                                    <button
-                                                        onClick={() => i18n.changeLanguage('fil')}
-                                                        className={`gum-btn px-6 py-2.5 text-sm font-bold transition-colors ${i18n.language.startsWith('fil') ? 'bg-primary text-primary-foreground gum-shadow-sm' : 'bg-background hover:bg-secondary text-foreground'}`}
-                                                    >
-                                                        Tagalog
-                                                    </button>
-                                                    <button
-                                                        onClick={() => i18n.changeLanguage('hi')}
-                                                        className={`gum-btn px-6 py-2.5 text-sm font-bold transition-colors ${i18n.language.startsWith('hi') ? 'bg-primary text-primary-foreground gum-shadow-sm' : 'bg-background hover:bg-secondary text-foreground'}`}
-                                                    >
-                                                        हिंदी
-                                                    </button>
-                                                    <button
-                                                        onClick={() => i18n.changeLanguage('es')}
-                                                        className={`gum-btn px-6 py-2.5 text-sm font-bold transition-colors ${i18n.language.startsWith('es') ? 'bg-primary text-primary-foreground gum-shadow-sm' : 'bg-background hover:bg-secondary text-foreground'}`}
-                                                    >
-                                                        Español
-                                                    </button>
-                                                    <button
-                                                        onClick={() => i18n.changeLanguage('pt')}
-                                                        className={`gum-btn px-6 py-2.5 text-sm font-bold transition-colors ${i18n.language.startsWith('pt') ? 'bg-primary text-primary-foreground gum-shadow-sm' : 'bg-background hover:bg-secondary text-foreground'}`}
-                                                    >
-                                                        Português
-                                                    </button>
-                                                    <button
-                                                        onClick={() => i18n.changeLanguage('ko')}
-                                                        className={`gum-btn px-6 py-2.5 text-sm font-bold transition-colors ${i18n.language.startsWith('ko') ? 'bg-primary text-primary-foreground gum-shadow-sm' : 'bg-background hover:bg-secondary text-foreground'}`}
-                                                    >
-                                                        한국어
-                                                    </button>
-                                                    <button
-                                                        onClick={() => i18n.changeLanguage('ru')}
-                                                        className={`gum-btn px-6 py-2.5 text-sm font-bold transition-colors ${i18n.language.startsWith('ru') ? 'bg-primary text-primary-foreground gum-shadow-sm' : 'bg-background hover:bg-secondary text-foreground'}`}
-                                                    >
-                                                        Русский
-                                                    </button>
+                                                    {([
+                                                        { code: 'en', label: 'English' },
+                                                        { code: 'bn', label: 'বাংলা' },
+                                                        { code: 'ja', label: '日本語' },
+                                                        { code: 'fil', label: 'Tagalog' },
+                                                        { code: 'hi', label: 'हिंदी' },
+                                                        { code: 'es', label: 'Español' },
+                                                        { code: 'pt', label: 'Português' },
+                                                        { code: 'ko', label: '한국어' },
+                                                        { code: 'ru', label: 'Русский' },
+                                                    ]).map((lang) => (
+                                                        <button
+                                                            key={lang.code}
+                                                            onClick={() => i18n.changeLanguage(lang.code)}
+                                                            className={`gum-btn px-6 py-2.5 text-sm font-bold transition-colors ${i18n.language.startsWith(lang.code) ? 'bg-primary text-primary-foreground gum-shadow-sm' : 'bg-background hover:bg-secondary text-foreground'}`}
+                                                        >
+                                                            {lang.label}
+                                                        </button>
+                                                    ))}
                                                 </div>
                                             </div>
                                         </section>
@@ -889,74 +872,30 @@ const SettingsPage = () => {
                                                 <h2 className="text-lg font-bold mb-1 flex items-center gap-2"><Palette size={18} className="text-primary" /> Theme Presets</h2>
                                                 <p className="text-sm text-muted-foreground mb-4">Apply a complete look in one click, then fine-tune below.</p>
                                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                                    <button
-                                                        onClick={() => handlePresetChange("default")}
-                                                        className={`gum-btn text-left px-4 py-3 transition-all ${preset === "default" ? "bg-primary text-primary-foreground gum-shadow-sm" : "bg-background hover:bg-secondary text-foreground"}`}
-                                                    >
-                                                        <p className="font-bold text-sm">Default</p>
-                                                        <p className={`text-xs mt-1 ${preset === "default" ? "text-primary-foreground/80" : "text-muted-foreground"}`}>Current Genjutsu style</p>
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handlePresetChange("minecraft")}
-                                                        className={`gum-btn text-left px-4 py-3 transition-all ${preset === "minecraft" ? "bg-primary text-primary-foreground gum-shadow-sm" : "bg-background hover:bg-secondary text-foreground"}`}
-                                                    >
-                                                        <p className="font-bold text-sm">Minecraft</p>
-                                                        <p className={`text-xs mt-1 ${preset === "minecraft" ? "text-primary-foreground/80" : "text-muted-foreground"}`}>Blocky earth tones and pixel-style mood</p>
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handlePresetChange("win95")}
-                                                        className={`gum-btn text-left px-4 py-3 transition-all ${preset === "win95" ? "bg-primary text-primary-foreground gum-shadow-sm" : "bg-background hover:bg-secondary text-foreground"}`}
-                                                    >
-                                                        <p className="font-bold text-sm">Windows 95</p>
-                                                        <p className={`text-xs mt-1 ${preset === "win95" ? "text-primary-foreground/80" : "text-muted-foreground"}`}>Classic PC aesthetic with 3D beveled edges</p>
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handlePresetChange("papyrus")}
-                                                        className={`gum-btn text-left px-4 py-3 transition-all ${preset === "papyrus" ? "bg-primary text-primary-foreground gum-shadow-sm" : "bg-background hover:bg-secondary text-foreground"}`}
-                                                    >
-                                                        <p className="font-bold text-sm">Papyrus/Ink</p>
-                                                        <p className={`text-xs mt-1 ${preset === "papyrus" ? "text-primary-foreground/80" : "text-muted-foreground"}`}>Old manuscript with parchment texture</p>
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handlePresetChange("hackernews")}
-                                                        className={`gum-btn text-left px-4 py-3 transition-all ${preset === "hackernews" ? "bg-primary text-primary-foreground gum-shadow-sm" : "bg-background hover:bg-secondary text-foreground"}`}
-                                                    >
-                                                        <p className="font-bold text-sm">Hacker News</p>
-                                                        <p className={`text-xs mt-1 ${preset === "hackernews" ? "text-primary-foreground/80" : "text-muted-foreground"}`}>Classic orange accents on stark backgrounds</p>
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handlePresetChange("winxp")}
-                                                        className={`gum-btn text-left px-4 py-3 transition-all ${preset === "winxp" ? "bg-primary text-primary-foreground gum-shadow-sm" : "bg-background hover:bg-secondary text-foreground"}`}
-                                                    >
-                                                        <p className="font-bold text-sm">Windows XP</p>
-                                                        <p className={`text-xs mt-1 ${preset === "winxp" ? "text-primary-foreground/80" : "text-muted-foreground"}`}>The legendary Luna aesthetic with blue gradients</p>
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handlePresetChange("gameboy")}
-                                                        className={`gum-btn text-left px-4 py-3 transition-all ${preset === "gameboy" ? "bg-primary text-primary-foreground gum-shadow-sm" : "bg-background hover:bg-secondary text-foreground"}`}
-                                                    >
-                                                        <p className="font-bold text-sm">GameBoy</p>
-                                                        <p className={`text-xs mt-1 ${preset === "gameboy" ? "text-primary-foreground/80" : "text-muted-foreground"}`}>Retro 4-shade green dot matrix aesthetic</p>
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handlePresetChange("nord")}
-                                                        className={`gum-btn text-left px-4 py-3 transition-all ${preset === "nord" ? "bg-primary text-primary-foreground gum-shadow-sm" : "bg-background hover:bg-secondary text-foreground"}`}
-                                                    >
-                                                        <p className="font-bold text-sm">Nord</p>
-                                                        <p className={`text-xs mt-1 ${preset === "nord" ? "text-primary-foreground/80" : "text-muted-foreground"}`}>Arctic blue and slate grey for calm focus</p>
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handlePresetChange("terminal")}
-                                                        className={`gum-btn text-left px-4 py-3 transition-all ${preset === "terminal" ? "bg-primary text-primary-foreground gum-shadow-sm" : "bg-background hover:bg-secondary text-foreground"}`}
-                                                    >
-                                                        <p className="font-bold text-sm">Terminal</p>
-                                                        <p className={`text-xs mt-1 ${preset === "terminal" ? "text-primary-foreground/80" : "text-muted-foreground"}`}>Neon green matrix aesthetic with scanlines</p>
-                                                    </button>
+                                                    {([
+                                                        { id: 'default', name: 'Default', desc: 'Current Genjutsu style' },
+                                                        { id: 'minecraft', name: 'Minecraft', desc: 'Blocky earth tones and pixel-style mood' },
+                                                        { id: 'win95', name: 'Windows 95', desc: 'Classic PC aesthetic with 3D beveled edges' },
+                                                        { id: 'papyrus', name: 'Papyrus/Ink', desc: 'Old manuscript with parchment texture' },
+                                                        { id: 'hackernews', name: 'Hacker News', desc: 'Classic orange accents on stark backgrounds' },
+                                                        { id: 'winxp', name: 'Windows XP', desc: 'The legendary Luna aesthetic with blue gradients' },
+                                                        { id: 'gameboy', name: 'GameBoy', desc: 'Retro 4-shade green dot matrix aesthetic' },
+                                                        { id: 'nord', name: 'Nord', desc: 'Arctic blue and slate grey for calm focus' },
+                                                        { id: 'terminal', name: 'Terminal', desc: 'Neon green matrix aesthetic with scanlines' },
+                                                    ] as const).map((p) => (
+                                                        <button
+                                                            key={p.id}
+                                                            onClick={() => handlePresetChange(p.id)}
+                                                            className={`gum-btn text-left px-4 py-3 transition-all ${preset === p.id ? "bg-primary text-primary-foreground gum-shadow-sm" : "bg-background hover:bg-secondary text-foreground"}`}
+                                                        >
+                                                            <p className="font-bold text-sm">{p.name}</p>
+                                                            <p className={`text-xs mt-1 ${preset === p.id ? "text-primary-foreground/80" : "text-muted-foreground"}`}>{p.desc}</p>
+                                                        </button>
+                                                    ))}
                                                 </div>
                                             </div>
 
                                             <div className="pt-6 border-t border-border">
-                                            <div>
                                                 <h2 className="text-lg font-bold mb-1 flex items-center gap-2"><Layout size={18} className="text-primary" /> Theme Mode</h2>
                                                 <p className="text-sm text-muted-foreground mb-4">Choose how you experience the illusion.</p>
                                                 <div className="flex flex-wrap gap-3">
@@ -973,7 +912,6 @@ const SettingsPage = () => {
                                                         </button>
                                                     ))}
                                                 </div>
-                                            </div>
                                             </div>
                                         </section>
                                     </motion.div>
@@ -1023,7 +961,6 @@ const SettingsPage = () => {
                                                             {color === c && <Check size={20} className="text-primary-foreground" />}
                                                         </button>
                                                     ))}
-                                                    {/* Custom color picker */}
                                                     <label
                                                         className={`w-12 h-12 rounded-full border-4 transition-all flex items-center justify-center cursor-pointer overflow-hidden relative group ${color === 'custom' ? 'border-primary/50 shadow-lg scale-110 shadow-primary/20' : 'border-border/30 hover:border-border/60 bg-muted hover:bg-secondary border-dashed'}`}
                                                         style={color === 'custom' ? { backgroundColor: customColor } : undefined}
@@ -1052,126 +989,15 @@ const SettingsPage = () => {
                                                 <h2 className="text-lg font-bold mb-1 flex items-center gap-2"><Type size={18} className="text-primary" /> Typography</h2>
                                                 <p className="text-sm text-muted-foreground mb-4">Set the textual vibe of the illusion.</p>
                                                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                                                    {(['Reddit Mono', 'Inter', 'Space Grotesk', 'Fira Code', 'JetBrains Mono', 'Comic Neue'] as const).map((f) => (
+                                                    {(['Inter', 'Space Grotesk', 'Fira Code', 'JetBrains Mono', 'Comic Neue', 'Reddit Mono'] as const).map((f) => (
                                                         <button 
                                                             key={f}
                                                             onClick={() => setFont(f)}
                                                             className={`gum-btn px-4 py-3 text-sm font-bold truncate transition-colors ${font === f ? 'bg-primary text-primary-foreground gum-shadow-sm' : 'bg-background hover:bg-secondary text-foreground'}`}
-                                                            style={{
-                                                                fontFamily:
-                                                                    f === 'Reddit Mono' ? "'Reddit Mono', monospace" :
-                                                                        f === 'Fira Code' || f === 'JetBrains Mono' ? `'${f}', monospace` :
-                                                                            f === 'Comic Neue' ? "'Comic Neue', cursive" :
-                                                                                `'${f}', sans-serif`,
-                                                            }}
                                                         >
                                                             {f}
                                                         </button>
                                                     ))}
-                                                </div>
-                                            </div>
-
-                                            <div className="pt-6 border-t border-border">
-                                                <h2 className="text-lg font-bold mb-1 flex items-center gap-2"><Smile size={18} className="text-primary" /> Emoji Pack</h2>
-                                                <p className="text-sm text-muted-foreground mb-4">Choose how emojis are rendered across chats and posts.</p>
-                                                <div className="mb-4 rounded-[3px] border border-border/60 bg-secondary/30 p-3">
-                                                    <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">Current Preview</p>
-                                                    <TwemojiText className="text-2xl leading-none">😀 😂 ❤️ 👍 🙏 😭 🔥</TwemojiText>
-                                                </div>
-                                                <div className="flex flex-wrap gap-3">
-                                                    <button
-                                                        onClick={() => setEmojiPack("native")}
-                                                        className={`gum-btn px-6 py-2.5 text-sm font-bold transition-colors ${emojiPack === "native" ? 'bg-primary text-primary-foreground gum-shadow-sm' : 'bg-background hover:bg-secondary text-foreground'}`}
-                                                    >
-                                                        Device Default
-                                                    </button>
-                                                    <button
-                                                        onClick={() => setEmojiPack("twemoji")}
-                                                        className={`gum-btn px-6 py-2.5 text-sm font-bold transition-colors ${emojiPack === "twemoji" ? 'bg-primary text-primary-foreground gum-shadow-sm' : 'bg-background hover:bg-secondary text-foreground'}`}
-                                                    >
-                                                        Twitter
-                                                    </button>
-                                                    <button
-                                                        onClick={() => setEmojiPack("google")}
-                                                        className={`gum-btn px-6 py-2.5 text-sm font-bold transition-colors ${emojiPack === "google" ? 'bg-primary text-primary-foreground gum-shadow-sm' : 'bg-background hover:bg-secondary text-foreground'}`}
-                                                    >
-                                                        Google
-                                                    </button>
-                                                    <button
-                                                        onClick={() => setEmojiPack("openmoji")}
-                                                        className={`gum-btn px-6 py-2.5 text-sm font-bold transition-colors ${emojiPack === "openmoji" ? 'bg-primary text-primary-foreground gum-shadow-sm' : 'bg-background hover:bg-secondary text-foreground'}`}
-                                                    >
-                                                        OpenMoji
-                                                    </button>
-                                                </div>
-                                            </div>
-
-                                            <div className="pt-6 border-t border-border">
-                                                <h2 className="text-lg font-bold mb-1 flex items-center gap-2"><Square size={18} className="text-primary" /> Border Radius</h2>
-                                                <p className="text-sm text-muted-foreground mb-4">How sharp should the edges be?</p>
-                                                <div className="flex flex-wrap gap-3">
-                                                    {(['none', 'default', 'md', 'lg', 'full'] as const).map((r) => (
-                                                        <button 
-                                                            key={r}
-                                                            onClick={() => setRadius(r)}
-                                                            className={`gum-btn px-6 py-2.5 text-sm font-bold capitalize transition-colors ${radius === r ? 'bg-primary text-primary-foreground gum-shadow-sm' : 'bg-background hover:bg-secondary text-foreground'}`}
-                                                            style={{ borderRadius: r === 'none' ? '0px' : r === 'default' ? '3px' : r === 'md' ? '8px' : r === 'lg' ? '16px' : '2rem' }}
-                                                        >
-                                                            {r}
-                                                        </button>
-                                                    ))}
-                                                </div>
-                                            </div>
-
-                                            <div className="pt-6 border-t border-border">
-                                                <h2 className="text-lg font-bold mb-1 flex items-center gap-2"><Grid size={18} className="text-primary" /> Background Grid</h2>
-                                                <p className="text-sm text-muted-foreground mb-4">Choose the tactical matrix for your spells.</p>
-                                                <div className="flex flex-wrap gap-3">
-                                                    {(['blueprint', 'dotted', 'scanlines', 'none'] as const).map((g) => (
-                                                        <button 
-                                                            key={g}
-                                                            onClick={() => setGrid(g)}
-                                                            className={`gum-btn px-6 py-2.5 text-sm font-bold capitalize transition-colors ${grid === g ? 'bg-primary text-primary-foreground gum-shadow-sm' : 'bg-background hover:bg-secondary text-foreground'}`}
-                                                        >
-                                                            {g}
-                                                        </button>
-                                                    ))}
-                                                </div>
-                                            </div>
-
-                                            <div className="pt-6 border-t border-border hidden md:block">
-                                                <div className="flex items-center justify-between">
-                                                    <div>
-                                                        <h2 className="text-lg font-bold mb-1 flex items-center gap-2">
-                                                            <WandSparkles size={18} className="text-primary" />
-                                                            Cursor Trail
-                                                        </h2>
-                                                        <p className="text-sm text-muted-foreground">Follows your mouse with a glowing trail matching your Aura color.</p>
-                                                    </div>
-                                                    <button
-                                                        onClick={() => setCursorTrail(!cursorTrail)}
-                                                        className={`gum-btn px-4 py-2 text-sm font-bold flex items-center gap-2 transition-all ${cursorTrail ? 'bg-primary text-primary-foreground gum-shadow-sm' : 'bg-background hover:bg-secondary text-foreground'}`}
-                                                    >
-                                                        {cursorTrail ? 'Enabled' : 'Disabled'}
-                                                    </button>
-                                                </div>
-                                            </div>
-
-                                            <div className="pt-6 border-t border-border">
-                                                <div className="flex items-center justify-between">
-                                                    <div>
-                                                        <h2 className="text-lg font-bold mb-1 flex items-center gap-2">
-                                                            {shadowWalk ? <EyeOff size={18} className="text-primary" /> : <Eye size={18} className="text-muted-foreground" />}
-                                                            Shadow Walk
-                                                        </h2>
-                                                        <p className="text-sm text-muted-foreground">Dims the UI, blurs avatars and usernames for public browsing. <kbd className="text-[10px] bg-secondary px-1.5 py-0.5 rounded font-mono border border-border">Ctrl+Shift+S</kbd></p>
-                                                    </div>
-                                                    <button
-                                                        onClick={() => setShadowWalk(!shadowWalk)}
-                                                        className={`gum-btn px-4 py-2 text-sm font-bold flex items-center gap-2 transition-all ${shadowWalk ? 'bg-primary text-primary-foreground gum-shadow-sm' : 'bg-background hover:bg-secondary text-foreground'}`}
-                                                    >
-                                                        {shadowWalk ? '🥷 Active' : 'Disabled'}
-                                                    </button>
                                                 </div>
                                             </div>
                                         </section>
@@ -1199,7 +1025,7 @@ const SettingsPage = () => {
                                             <div className="flex items-start justify-between gap-4 rounded-[3px] border border-border bg-secondary/30 p-4">
                                                 <div className="pr-0 sm:pr-4">
                                                     <h3 className="font-bold mb-1">Manual Image Loading</h3>
-                                                    <p className="text-sm text-muted-foreground">Blocks auto-loading for remote images. Tap each image to load it manually. Avatars and profile banners are always allowed.</p>
+                                                    <p className="text-sm text-muted-foreground">Blocks auto-loading for remote images. Tap each image to load it manually.</p>
                                                 </div>
                                                 <button
                                                     onClick={() => setDataSaver(!dataSaver)}
@@ -1227,23 +1053,20 @@ const SettingsPage = () => {
                                                     <Music className="text-primary" />
                                                     Audio & SFX
                                                 </h2>
-                                                
-                                                <div className="flex flex-col gap-4">
-                                                    <div className="flex items-start justify-between bg-secondary/30 p-4 rounded-[3px] border border-border">
-                                                        <div className="pr-4">
-                                                            <h3 className="font-bold mb-1 flex items-center gap-2">
-                                                                {soundEnabled ? <Volume2 size={18} className="text-primary" /> : <VolumeX size={18} className="text-muted-foreground" />}
-                                                                {soundEnabled ? "Audio Engine Enabled" : "Audio Engine Muted"}
-                                                            </h3>
-                                                            <p className="text-sm text-muted-foreground">Synthesize responsive sound effects directly from your browser. Adds satisfying haptic clicks, hover feedback, and delicate typing notes without loading external assets.</p>
-                                                        </div>
-                                                        <button
-                                                            onClick={() => setSoundEnabled(!soundEnabled)}
-                                                            className={`gum-btn shrink-0 w-20 h-10 text-sm font-bold transition-all ${soundEnabled ? 'bg-primary text-primary-foreground gum-shadow-sm' : 'bg-background hover:bg-secondary text-foreground border-2 border-border'}`}
-                                                        >
-                                                            {soundEnabled ? "ON" : "OFF"}
-                                                        </button>
+                                                <div className="flex items-start justify-between bg-secondary/30 p-4 rounded-[3px] border border-border">
+                                                    <div className="pr-4">
+                                                        <h3 className="font-bold mb-1 flex items-center gap-2">
+                                                            {soundEnabled ? <Volume2 size={18} className="text-primary" /> : <VolumeX size={18} className="text-muted-foreground" />}
+                                                            {soundEnabled ? "Audio Engine Enabled" : "Audio Engine Muted"}
+                                                        </h3>
+                                                        <p className="text-sm text-muted-foreground">Synthesize responsive sound effects directly from your browser.</p>
                                                     </div>
+                                                    <button
+                                                        onClick={() => setSoundEnabled(!soundEnabled)}
+                                                        className={`gum-btn shrink-0 w-20 h-10 text-sm font-bold transition-all ${soundEnabled ? 'bg-primary text-primary-foreground gum-shadow-sm' : 'bg-background hover:bg-secondary text-foreground border-2 border-border'}`}
+                                                    >
+                                                        {soundEnabled ? "ON" : "OFF"}
+                                                    </button>
                                                 </div>
                                             </div>
                                         </section>
@@ -1266,692 +1089,32 @@ const SettingsPage = () => {
                                                     Security
                                                 </h2>
 
-                                                {/* Account Email */}
                                                 <div className="bg-secondary/30 p-4 rounded-[3px] border border-border space-y-4">
                                                     <div>
                                                         <h3 className="font-bold mb-1 flex items-center gap-2">
                                                             <AtSign size={18} className="text-primary" />
                                                             Email Address
                                                         </h3>
-                                                        <p className="text-sm text-muted-foreground">
-                                                            Change the email used for sign-in and account notifications. Supabase will send confirmation email before applying the change.
-                                                        </p>
+                                                        <p className="text-sm text-muted-foreground">Change the email used for sign-in and account notifications.</p>
                                                     </div>
                                                     <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
-                                                        <div>
-                                                            <label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/60 mb-2 block">
-                                                                Current email
-                                                            </label>
-                                                            <input
-                                                                type="email"
-                                                                value={newEmail}
-                                                                onChange={(e) => setNewEmail(e.target.value)}
-                                                                className="w-full px-4 py-3 bg-background gum-border rounded-[3px] text-sm outline-none focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-muted-foreground/30"
-                                                                placeholder={user.email ?? "you@dev.com"}
-                                                                autoComplete="email"
-                                                            />
-                                                        </div>
+                                                        <input
+                                                            type="email"
+                                                            value={newEmail}
+                                                            onChange={(e) => setNewEmail(e.target.value)}
+                                                            className="w-full px-4 py-3 bg-background gum-border rounded-[3px] text-sm outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+                                                            placeholder={user.email ?? "you@dev.com"}
+                                                        />
                                                         <button
                                                             type="button"
                                                             onClick={handleUpdateEmail}
-                                                            disabled={emailActionLoading || !newEmail.trim() || newEmail.trim().toLowerCase() === (user.email ?? "").toLowerCase()}
+                                                            disabled={emailActionLoading || !newEmail.trim()}
                                                             className="gum-btn bg-primary text-primary-foreground px-4 py-3 text-sm font-bold disabled:opacity-50"
                                                         >
-                                                            {emailActionLoading ? <FrogLoader size={16} className="" /> : "Change Email"}
-                                                        </button>
-                                                    </div>
-                                                    <p className="text-[11px] text-muted-foreground">
-                                                        If secure email change is enabled, you must confirm from both your current and new inbox.
-                                                    </p>
-                                                </div>
-
-                                                {/* Password Sign-in */}
-                                                <div className="bg-secondary/30 p-4 rounded-[3px] border border-border space-y-4">
-                                                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-                                                        <div>
-                                                            <h3 className="font-bold mb-1 flex items-center gap-2">
-                                                                <KeyRound size={18} className={hasEmailIdentity ? "text-primary" : "text-muted-foreground"} />
-                                                                {hasEmailIdentity ? "Change Password" : "Add Password"}
-                                                            </h3>
-                                                            <p className="text-sm text-muted-foreground">
-                                                                {hasEmailIdentity
-                                                                    ? "Update your email/password sign-in password."
-                                                                    : "You joined with Google or GitHub. Add a password to also sign in with email."}
-                                                            </p>
-                                                        </div>
-                                                        <div className="flex flex-wrap gap-2">
-                                                            {authSecurityLoading ? (
-                                                                <span className="inline-flex items-center gap-2 text-xs font-bold text-muted-foreground">
-                                                                    <FrogLoader size={14} className="" /> Loading methods
-                                                                </span>
-                                                            ) : linkedProviders.length > 0 ? (
-                                                                linkedProviders.map((provider) => (
-                                                                    <span key={provider} className="rounded-[3px] border border-border bg-background px-2 py-1 text-[10px] font-black uppercase tracking-widest">
-                                                                        {provider}
-                                                                    </span>
-                                                                ))
-                                                            ) : (
-                                                                <span className="rounded-[3px] border border-border bg-background px-2 py-1 text-[10px] font-black uppercase tracking-widest">
-                                                                    {user.app_metadata?.provider ?? "auth"}
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                    </div>
-
-                                                    {authSecurityError && (
-                                                        <div className="flex items-center justify-between gap-3 rounded-[3px] border border-destructive/30 bg-destructive/10 px-3 py-2">
-                                                            <p className="text-xs font-medium text-destructive">{authSecurityError}</p>
-                                                            <button
-                                                                onClick={() => void loadAuthSecurityStatus()}
-                                                                className="gum-btn bg-background px-3 py-1.5 text-xs font-bold"
-                                                                disabled={authSecurityLoading}
-                                                            >
-                                                                Retry
-                                                            </button>
-                                                        </div>
-                                                    )}
-
-                                                    {!hasEmailIdentity && oauthProviders.length > 0 && (
-                                                        <div className="rounded-[3px] border border-primary/20 bg-primary/10 px-3 py-2 text-xs font-bold text-foreground">
-                                                            Adding a password keeps your {oauthProviders.join("/")} sign-in connected and adds email/password as another option.
-                                                        </div>
-                                                    )}
-
-                                                    <div className="grid gap-3 sm:grid-cols-2">
-                                                        <div>
-                                                            <label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/60 mb-2 block">
-                                                                New password
-                                                            </label>
-                                                            <div className="relative">
-                                                                <input
-                                                                    type={showAccountPassword ? "text" : "password"}
-                                                                    value={accountPassword}
-                                                                    onChange={(e) => setAccountPassword(e.target.value)}
-                                                                    className="w-full px-4 py-3 bg-background gum-border rounded-[3px] text-sm outline-none focus:ring-2 focus:ring-primary/20 pr-12 transition-all placeholder:text-muted-foreground/30"
-                                                                    placeholder="••••••••"
-                                                                    autoComplete="new-password"
-                                                                />
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => setShowAccountPassword(!showAccountPassword)}
-                                                                    className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                                                                >
-                                                                    {showAccountPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                                                                </button>
-                                                            </div>
-                                                        </div>
-                                                        <div>
-                                                            <label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/60 mb-2 block">
-                                                                Confirm password
-                                                            </label>
-                                                            <input
-                                                                type={showAccountPassword ? "text" : "password"}
-                                                                value={accountPasswordConfirm}
-                                                                onChange={(e) => setAccountPasswordConfirm(e.target.value)}
-                                                                className="w-full px-4 py-3 bg-background gum-border rounded-[3px] text-sm outline-none focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-muted-foreground/30"
-                                                                placeholder="••••••••"
-                                                                autoComplete="new-password"
-                                                            />
-                                                        </div>
-                                                    </div>
-
-                                                    <div className="flex justify-end">
-                                                        <button
-                                                            type="button"
-                                                            onClick={handleUpdateAccountPassword}
-                                                            disabled={passwordActionLoading || !accountPassword || !accountPasswordConfirm}
-                                                            className="gum-btn bg-primary text-primary-foreground px-4 py-3 text-sm font-bold disabled:opacity-50"
-                                                        >
-                                                            {passwordActionLoading ? <FrogLoader size={16} className="" /> : hasEmailIdentity ? "Update Password" : "Add Password"}
+                                                            {emailActionLoading ? <FrogLoader size={16} /> : "Change Email"}
                                                         </button>
                                                     </div>
                                                 </div>
-
-                                                {/* Authenticator App (2FA) */}
-                                                <div className="bg-secondary/30 p-4 rounded-[3px] border border-border space-y-4">
-                                                    <div className="flex flex-col sm:flex-row items-start justify-between gap-4">
-                                                        <div className="pr-0 sm:pr-4">
-                                                            <h3 className="font-bold mb-1 flex items-center gap-2">
-                                                                <Shield size={18} className={mfaFactorId ? "text-primary" : "text-muted-foreground"} />
-                                                                Authenticator App (2FA)
-                                                            </h3>
-                                                            <p className="text-sm text-muted-foreground">
-                                                                Add an authenticator app for 6-digit verification codes at sign in.
-                                                            </p>
-                                                            <p className="text-xs mt-2 font-medium">
-                                                                {mfaStatusLoading
-                                                                    ? "Checking status..."
-                                                                    : mfaStatusError
-                                                                        ? "Status unavailable. Please retry."
-                                                                    : !mfaStatusReady
-                                                                        ? "Checking status..."
-                                                                    : mfaFactorId
-                                                                        ? `Status: Enabled (${mfaAalLevel === "aal2" ? "verified this session" : "needs verification on next sign in"})`
-                                                                        : "Status: Disabled"}
-                                                            </p>
-                                                        </div>
-
-                                                        {!mfaFactorId ? (
-                                                            <button
-                                                                onClick={handleStartMfaSetup}
-                                                                disabled={mfaStatusLoading || !mfaStatusReady || mfaActionLoading || !!mfaSetup}
-                                                                className="gum-btn shrink-0 w-28 h-10 text-sm font-bold bg-primary text-primary-foreground disabled:opacity-50"
-                                                            >
-                                                                {mfaActionLoading ? <FrogLoader className="" size={16} /> : "Enable"}
-                                                            </button>
-                                                        ) : (
-                                                            <button
-                                                                onClick={handleDisableMfa}
-                                                                disabled={mfaStatusLoading || !mfaStatusReady || mfaActionLoading || mfaAalLevel !== "aal2"}
-                                                                className="gum-btn shrink-0 w-28 h-10 text-sm font-bold bg-background hover:bg-secondary disabled:opacity-50"
-                                                                title={mfaAalLevel !== "aal2" ? "Verify with 2FA first" : "Disable authenticator app"}
-                                                            >
-                                                                {mfaActionLoading ? <FrogLoader className="" size={16} /> : "Disable"}
-                                                            </button>
-                                                        )}
-                                                    </div>
-
-                                                    {mfaStatusError && (
-                                                        <div className="flex items-center justify-between gap-3 rounded-[3px] border border-destructive/30 bg-destructive/10 px-3 py-2">
-                                                            <p className="text-xs font-medium text-destructive">{mfaStatusError}</p>
-                                                            <button
-                                                                onClick={() => void loadMfaStatus()}
-                                                                className="gum-btn bg-background px-3 py-1.5 text-xs font-bold"
-                                                                disabled={mfaStatusLoading || mfaActionLoading}
-                                                            >
-                                                                Retry
-                                                            </button>
-                                                        </div>
-                                                    )}
-
-                                                    {mfaSetup && (
-                                                        <div className="p-4 bg-background border border-border rounded-[3px] space-y-4">
-                                                            <p className="text-sm font-bold">Step 1: Scan QR code in your authenticator app</p>
-                                                            <div className="flex flex-col sm:flex-row items-start gap-4">
-                                                                <img
-                                                                    src={buildQrImageSrc(mfaSetup.qrCode)}
-                                                                    alt="Authenticator QR code"
-                                                                    className="w-40 h-40 bg-white p-2 rounded-[3px] border border-border"
-                                                                />
-                                                                <div className="space-y-2">
-                                                                    <p className="text-xs text-muted-foreground">If you cannot scan, enter this key manually:</p>
-                                                                    <p className="text-xs font-mono bg-secondary px-2 py-1 rounded-[3px] break-all">
-                                                                        {mfaSetup.secret}
-                                                                    </p>
-                                                                    <p className="text-[11px] text-muted-foreground break-all">
-                                                                        URI: {mfaSetup.uri}
-                                                                    </p>
-                                                                </div>
-                                                            </div>
-
-                                                            <div className="space-y-3">
-                                                                <p className="text-sm font-bold">Step 2: Enter the 6-digit code</p>
-                                                                <div className="flex justify-center">
-                                                                    <InputOTP
-                                                                        maxLength={6}
-                                                                        value={mfaCode}
-                                                                        onChange={setMfaCode}
-                                                                    >
-                                                                        <InputOTPGroup>
-                                                                            <InputOTPSlot index={0} className="w-10 h-10 text-base font-bold" />
-                                                                            <InputOTPSlot index={1} className="w-10 h-10 text-base font-bold" />
-                                                                            <InputOTPSlot index={2} className="w-10 h-10 text-base font-bold" />
-                                                                            <InputOTPSlot index={3} className="w-10 h-10 text-base font-bold" />
-                                                                            <InputOTPSlot index={4} className="w-10 h-10 text-base font-bold" />
-                                                                            <InputOTPSlot index={5} className="w-10 h-10 text-base font-bold" />
-                                                                        </InputOTPGroup>
-                                                                    </InputOTP>
-                                                                </div>
-
-                                                                <div className="flex flex-wrap gap-2 justify-end">
-                                                                    <button
-                                                                        onClick={handleCancelMfaSetup}
-                                                                        disabled={mfaActionLoading}
-                                                                        className="gum-btn text-sm px-4 py-2 bg-secondary hover:bg-secondary/80 font-bold disabled:opacity-50"
-                                                                    >
-                                                                        Cancel
-                                                                    </button>
-                                                                    <button
-                                                                        onClick={handleVerifyMfaSetup}
-                                                                        disabled={mfaActionLoading || mfaCode.length !== 6}
-                                                                        className="gum-btn text-sm px-4 py-2 bg-primary text-primary-foreground font-bold disabled:opacity-50"
-                                                                    >
-                                                                        {mfaActionLoading ? <FrogLoader className="" size={16} /> : "Verify & Enable"}
-                                                                    </button>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    )}
-                                                </div>
-
-                                                {/* App Lock Toggle */}
-                                                <div className="flex items-start justify-between bg-secondary/30 p-4 rounded-[3px] border border-border">
-                                                    <div className="pr-4">
-                                                        <h3 className="font-bold mb-1 flex items-center gap-2">
-                                                            <Lock size={18} className={appLockEnabled ? "text-primary" : "text-muted-foreground"} />
-                                                            App Lock
-                                                        </h3>
-                                                        <p className="text-sm text-muted-foreground">
-                                                            Require a 4-digit PIN to open Genjutsu. Protects your session from casual access.
-                                                        </p>
-                                                    </div>
-                                                    <button
-                                                        onClick={() => {
-                                                            if (appLockEnabled) {
-                                                                setPinStep("verify-current");
-                                                                setPinValue("");
-                                                                setPinError(null);
-                                                            } else {
-                                                                setPinStep("set-new");
-                                                                setPinValue("");
-                                                                setPinConfirm("");
-                                                                setPinError(null);
-                                                            }
-                                                        }}
-                                                        className={`gum-btn shrink-0 w-20 h-10 text-sm font-bold transition-all ${appLockEnabled ? 'bg-primary text-primary-foreground gum-shadow-sm' : 'bg-background hover:bg-secondary text-foreground border-2 border-border'}`}
-                                                    >
-                                                        {appLockEnabled ? "ON" : "OFF"}
-                                                    </button>
-                                                </div>
-
-                                                {/* PIN Setup / Verification Flows */}
-                                                <AnimatePresence mode="wait">
-                                                    {pinStep === "set-new" && (
-                                                        <motion.div
-                                                            key="set-new"
-                                                            initial={{ opacity: 0, height: 0 }}
-                                                            animate={{ opacity: 1, height: "auto" }}
-                                                            exit={{ opacity: 0, height: 0 }}
-                                                            className="mt-4 p-4 bg-secondary/30 border border-border rounded-[3px] space-y-4"
-                                                        >
-                                                            <div>
-                                                                <p className="text-sm font-bold mb-3">Enter a 4-digit PIN</p>
-                                                                <div className="flex justify-center">
-                                                                    <InputOTP
-                                                                        maxLength={4}
-                                                                        value={pinValue}
-                                                                        onChange={(v) => { setPinValue(v); setPinError(null); }}
-                                                                        autoFocus
-                                                                    >
-                                                                        <InputOTPGroup>
-                                                                            <InputOTPSlot index={0} className="w-12 h-12 text-lg font-bold" />
-                                                                            <InputOTPSlot index={1} className="w-12 h-12 text-lg font-bold" />
-                                                                            <InputOTPSlot index={2} className="w-12 h-12 text-lg font-bold" />
-                                                                            <InputOTPSlot index={3} className="w-12 h-12 text-lg font-bold" />
-                                                                        </InputOTPGroup>
-                                                                    </InputOTP>
-                                                                </div>
-                                                            </div>
-                                                            <div className="flex gap-2 justify-end">
-                                                                <button
-                                                                    onClick={() => { setPinStep("idle"); setPinValue(""); setPinError(null); }}
-                                                                    className="gum-btn text-sm px-4 py-2 bg-secondary hover:bg-secondary/80 font-bold"
-                                                                >
-                                                                    Cancel
-                                                                </button>
-                                                                <button
-                                                                    disabled={pinValue.length !== 4}
-                                                                    onClick={() => { setPinStep("confirm-new"); setPinConfirm(""); }}
-                                                                    className="gum-btn text-sm px-4 py-2 bg-primary text-primary-foreground font-bold disabled:opacity-40"
-                                                                >
-                                                                    Next
-                                                                </button>
-                                                            </div>
-                                                        </motion.div>
-                                                    )}
-
-                                                    {pinStep === "confirm-new" && (
-                                                        <motion.div
-                                                            key="confirm-new"
-                                                            initial={{ opacity: 0, height: 0 }}
-                                                            animate={{ opacity: 1, height: "auto" }}
-                                                            exit={{ opacity: 0, height: 0 }}
-                                                            className="mt-4 p-4 bg-secondary/30 border border-border rounded-[3px] space-y-4"
-                                                        >
-                                                            <div>
-                                                                <p className="text-sm font-bold mb-3">Confirm your PIN</p>
-                                                                <div className="flex justify-center">
-                                                                    <InputOTP
-                                                                        maxLength={4}
-                                                                        value={pinConfirm}
-                                                                        onChange={(v) => {
-                                                                            setPinConfirm(v);
-                                                                            setPinError(null);
-                                                                            if (v.length === 4) {
-                                                                                if (v !== pinValue) {
-                                                                                    setPinError("PINs don't match. Try again.");
-                                                                                    setTimeout(() => setPinConfirm(""), 500);
-                                                                                } else {
-                                                                                    setPinStep("security-questions");
-                                                                                }
-                                                                            }
-                                                                        }}
-                                                                        autoFocus
-                                                                    >
-                                                                        <InputOTPGroup>
-                                                                            <InputOTPSlot index={0} className={`w-12 h-12 text-lg font-bold ${pinError ? 'border-destructive' : ''}`} />
-                                                                            <InputOTPSlot index={1} className={`w-12 h-12 text-lg font-bold ${pinError ? 'border-destructive' : ''}`} />
-                                                                            <InputOTPSlot index={2} className={`w-12 h-12 text-lg font-bold ${pinError ? 'border-destructive' : ''}`} />
-                                                                            <InputOTPSlot index={3} className={`w-12 h-12 text-lg font-bold ${pinError ? 'border-destructive' : ''}`} />
-                                                                        </InputOTPGroup>
-                                                                    </InputOTP>
-                                                                </div>
-                                                                {pinError && <p className="text-xs text-destructive text-center font-medium mt-2">{pinError}</p>}
-                                                            </div>
-                                                            <div className="flex gap-2 justify-end">
-                                                                <button
-                                                                    onClick={() => { setPinStep("set-new"); setPinConfirm(""); setPinError(null); }}
-                                                                    className="gum-btn text-sm px-4 py-2 bg-secondary hover:bg-secondary/80 font-bold"
-                                                                >
-                                                                    Back
-                                                                </button>
-                                                            </div>
-                                                        </motion.div>
-                                                    )}
-
-                                                    {pinStep === "security-questions" && (
-                                                        <motion.div
-                                                            key="security-questions"
-                                                            initial={{ opacity: 0, height: 0 }}
-                                                            animate={{ opacity: 1, height: "auto" }}
-                                                            exit={{ opacity: 0, height: 0 }}
-                                                            className="mt-4 p-4 bg-secondary/30 border border-border rounded-[3px] space-y-4"
-                                                        >
-                                                            <div>
-                                                                <p className="text-sm font-bold mb-3">Set Security Questions</p>
-                                                                <p className="text-xs text-muted-foreground mb-4">Choose two questions to recover your PIN if you forget it.</p>
-                                                                
-                                                                <div className="space-y-4">
-                                                                    <div className="space-y-2">
-                                                                        <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Question 1</label>
-                                                                        <select 
-                                                                            value={q1} 
-                                                                            onChange={(e) => setQ1(e.target.value)}
-                                                                            className="w-full bg-background border-2 border-border p-2 text-sm rounded-[3px] focus:outline-none focus:border-primary font-medium"
-                                                                        >
-                                                                            {PREDEFINED_QUESTIONS.map((q) => (
-                                                                                <option key={q} value={q} disabled={q === q2}>{q}</option>
-                                                                            ))}
-                                                                        </select>
-                                                                        <input 
-                                                                            type="text" 
-                                                                            value={a1} 
-                                                                            onChange={(e) => setA1(e.target.value)} 
-                                                                            placeholder="Your answer..."
-                                                                            className="w-full bg-background border-2 border-border p-2 text-sm rounded-[3px] focus:outline-none focus:border-primary placeholder:text-muted-foreground/50 transition-colors"
-                                                                        />
-                                                                    </div>
-                                                                    <div className="space-y-2">
-                                                                        <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Question 2</label>
-                                                                        <select 
-                                                                            value={q2} 
-                                                                            onChange={(e) => setQ2(e.target.value)}
-                                                                            className="w-full bg-background border-2 border-border p-2 text-sm rounded-[3px] focus:outline-none focus:border-primary font-medium"
-                                                                        >
-                                                                            {PREDEFINED_QUESTIONS.map((q) => (
-                                                                                <option key={q} value={q} disabled={q === q1}>{q}</option>
-                                                                            ))}
-                                                                        </select>
-                                                                        <input 
-                                                                            type="text" 
-                                                                            value={a2} 
-                                                                            onChange={(e) => setA2(e.target.value)} 
-                                                                            placeholder="Your answer..."
-                                                                            className="w-full bg-background border-2 border-border p-2 text-sm rounded-[3px] focus:outline-none focus:border-primary placeholder:text-muted-foreground/50 transition-colors"
-                                                                        />
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                            <div className="flex gap-2 justify-end">
-                                                                <button
-                                                                    onClick={() => { setPinStep("confirm-new"); setPinConfirm(""); setPinError(null); }}
-                                                                    className="gum-btn text-sm px-4 py-2 bg-secondary hover:bg-secondary/80 font-bold"
-                                                                    disabled={pinSaving}
-                                                                >
-                                                                    Back
-                                                                </button>
-                                                                <button
-                                                                    disabled={!a1.trim() || !a2.trim() || q1 === q2 || pinSaving}
-                                                                    onClick={() => {
-                                                                        setPinSaving(true);
-                                                                        Promise.all([
-                                                                            hashPin(pinConfirm),
-                                                                            hashPin(formatAnswer(a1)),
-                                                                            hashPin(formatAnswer(a2))
-                                                                        ]).then(([pinHash, a1Hash, a2Hash]) => {
-                                                                            localStorage.setItem(APP_LOCK_HASH_KEY, pinHash);
-                                                                            localStorage.setItem(APP_LOCK_Q1_KEY, q1);
-                                                                            localStorage.setItem(APP_LOCK_Q2_KEY, q2);
-                                                                            localStorage.setItem(APP_LOCK_A1_HASH_KEY, a1Hash);
-                                                                            localStorage.setItem(APP_LOCK_A2_HASH_KEY, a2Hash);
-                                                                            sessionStorage.setItem(APP_LOCK_SESSION_KEY, "true");
-                                                                            setAppLockEnabled(true);
-                                                                            setPinStep("idle");
-                                                                            setPinValue("");
-                                                                            setPinConfirm("");
-                                                                            setA1("");
-                                                                            setA2("");
-                                                                            setPinSaving(false);
-                                                                            toast.success("App Lock enabled with recovery questions!");
-                                                                        });
-                                                                    }}
-                                                                    className="gum-btn text-sm px-4 py-2 bg-primary text-primary-foreground font-bold disabled:opacity-40"
-                                                                >
-                                                                    {pinSaving ? "Saving..." : "Save Lock"}
-                                                                </button>
-                                                            </div>
-                                                        </motion.div>
-                                                    )}
-
-                                                    {pinStep === "verify-current" && (
-                                                        <motion.div
-                                                            key="verify-current"
-                                                            initial={{ opacity: 0, height: 0 }}
-                                                            animate={{ opacity: 1, height: "auto" }}
-                                                            exit={{ opacity: 0, height: 0 }}
-                                                            className="mt-4 p-4 bg-secondary/30 border border-border rounded-[3px] space-y-4"
-                                                        >
-                                                            <div>
-                                                                <p className="text-sm font-bold mb-3">Enter your current PIN to disable App Lock</p>
-                                                                <div className="flex justify-center">
-                                                                    <InputOTP
-                                                                        maxLength={4}
-                                                                        value={pinValue}
-                                                                        onChange={(v) => {
-                                                                            setPinValue(v);
-                                                                            setPinError(null);
-                                                                            if (v.length === 4) {
-                                                                                const hash = localStorage.getItem(APP_LOCK_HASH_KEY);
-                                                                                if (!hash) return;
-                                                                                verifyPin(v, hash).then((ok) => {
-                                                                                    if (ok) {
-                                                                                        localStorage.removeItem(APP_LOCK_HASH_KEY);
-                                                                                        localStorage.removeItem(APP_LOCK_Q1_KEY);
-                                                                                        localStorage.removeItem(APP_LOCK_Q2_KEY);
-                                                                                        localStorage.removeItem(APP_LOCK_A1_HASH_KEY);
-                                                                                        localStorage.removeItem(APP_LOCK_A2_HASH_KEY);
-                                                                                        sessionStorage.removeItem(APP_LOCK_SESSION_KEY);
-                                                                                        setAppLockEnabled(false);
-                                                                                        setPinStep("idle");
-                                                                                        setPinValue("");
-                                                                                        toast.success("App Lock disabled.");
-                                                                                    } else {
-                                                                                        setPinError("Wrong PIN.");
-                                                                                        setTimeout(() => setPinValue(""), 500);
-                                                                                    }
-                                                                                });
-                                                                            }
-                                                                        }}
-                                                                        autoFocus
-                                                                    >
-                                                                        <InputOTPGroup>
-                                                                            <InputOTPSlot index={0} className={`w-12 h-12 text-lg font-bold ${pinError ? 'border-destructive' : ''}`} />
-                                                                            <InputOTPSlot index={1} className={`w-12 h-12 text-lg font-bold ${pinError ? 'border-destructive' : ''}`} />
-                                                                            <InputOTPSlot index={2} className={`w-12 h-12 text-lg font-bold ${pinError ? 'border-destructive' : ''}`} />
-                                                                            <InputOTPSlot index={3} className={`w-12 h-12 text-lg font-bold ${pinError ? 'border-destructive' : ''}`} />
-                                                                        </InputOTPGroup>
-                                                                    </InputOTP>
-                                                                </div>
-                                                                {pinError && <p className="text-xs text-destructive text-center font-medium mt-2">{pinError}</p>}
-                                                            </div>
-                                                            <div className="flex gap-2 justify-end">
-                                                                <button
-                                                                    onClick={() => { setPinStep("idle"); setPinValue(""); setPinError(null); }}
-                                                                    className="gum-btn text-sm px-4 py-2 bg-secondary hover:bg-secondary/80 font-bold"
-                                                                >
-                                                                    Cancel
-                                                                </button>
-                                                            </div>
-                                                        </motion.div>
-                                                    )}
-
-                                                    {pinStep === "change-new" && (
-                                                        <motion.div
-                                                            key="change-new"
-                                                            initial={{ opacity: 0, height: 0 }}
-                                                            animate={{ opacity: 1, height: "auto" }}
-                                                            exit={{ opacity: 0, height: 0 }}
-                                                            className="mt-4 p-4 bg-secondary/30 border border-border rounded-[3px] space-y-4"
-                                                        >
-                                                            <div>
-                                                                <p className="text-sm font-bold mb-3">Enter your current PIN first</p>
-                                                                <div className="flex justify-center">
-                                                                    <InputOTP
-                                                                        maxLength={4}
-                                                                        value={pinValue}
-                                                                        onChange={(v) => {
-                                                                            setPinValue(v);
-                                                                            setPinError(null);
-                                                                            if (v.length === 4) {
-                                                                                const hash = localStorage.getItem(APP_LOCK_HASH_KEY);
-                                                                                if (!hash) return;
-                                                                                verifyPin(v, hash).then((ok) => {
-                                                                                    if (ok) {
-                                                                                        setPinStep("change-confirm");
-                                                                                        setPinValue("");
-                                                                                        setPinConfirm("");
-                                                                                        setPinError(null);
-                                                                                    } else {
-                                                                                        setPinError("Wrong PIN.");
-                                                                                        setTimeout(() => setPinValue(""), 500);
-                                                                                    }
-                                                                                });
-                                                                            }
-                                                                        }}
-                                                                        autoFocus
-                                                                    >
-                                                                        <InputOTPGroup>
-                                                                            <InputOTPSlot index={0} className={`w-12 h-12 text-lg font-bold ${pinError ? 'border-destructive' : ''}`} />
-                                                                            <InputOTPSlot index={1} className={`w-12 h-12 text-lg font-bold ${pinError ? 'border-destructive' : ''}`} />
-                                                                            <InputOTPSlot index={2} className={`w-12 h-12 text-lg font-bold ${pinError ? 'border-destructive' : ''}`} />
-                                                                            <InputOTPSlot index={3} className={`w-12 h-12 text-lg font-bold ${pinError ? 'border-destructive' : ''}`} />
-                                                                        </InputOTPGroup>
-                                                                    </InputOTP>
-                                                                </div>
-                                                                {pinError && <p className="text-xs text-destructive text-center font-medium mt-2">{pinError}</p>}
-                                                            </div>
-                                                            <div className="flex gap-2 justify-end">
-                                                                <button
-                                                                    onClick={() => { setPinStep("idle"); setPinValue(""); setPinError(null); }}
-                                                                    className="gum-btn text-sm px-4 py-2 bg-secondary hover:bg-secondary/80 font-bold"
-                                                                >
-                                                                    Cancel
-                                                                </button>
-                                                            </div>
-                                                        </motion.div>
-                                                    )}
-
-                                                    {pinStep === "change-confirm" && (
-                                                        <motion.div
-                                                            key="change-confirm"
-                                                            initial={{ opacity: 0, height: 0 }}
-                                                            animate={{ opacity: 1, height: "auto" }}
-                                                            exit={{ opacity: 0, height: 0 }}
-                                                            className="mt-4 p-4 bg-secondary/30 border border-border rounded-[3px] space-y-4"
-                                                        >
-                                                            <div>
-                                                                <p className="text-sm font-bold mb-3">
-                                                                    {pinValue.length < 4 ? "Enter your new PIN" : "Confirm your new PIN"}
-                                                                </p>
-                                                                <div className="flex justify-center">
-                                                                    <InputOTP
-                                                                        maxLength={4}
-                                                                        value={pinValue.length < 4 ? pinValue : pinConfirm}
-                                                                        onChange={(v) => {
-                                                                            setPinError(null);
-                                                                            if (pinValue.length < 4) {
-                                                                                setPinValue(v);
-                                                                            } else {
-                                                                                setPinConfirm(v);
-                                                                                if (v.length === 4) {
-                                                                                    if (v !== pinValue) {
-                                                                                        setPinError("PINs don't match. Try again.");
-                                                                                        setTimeout(() => { setPinConfirm(""); setPinValue(""); }, 500);
-                                                                                    } else {
-                                                                                        setPinSaving(true);
-                                                                                        hashPin(v).then((hash) => {
-                                                                                            localStorage.setItem(APP_LOCK_HASH_KEY, hash);
-                                                                                            setPinStep("idle");
-                                                                                            setPinValue("");
-                                                                                            setPinConfirm("");
-                                                                                            setPinSaving(false);
-                                                                                            toast.success("PIN changed successfully!");
-                                                                                        });
-                                                                                    }
-                                                                                }
-                                                                            }
-                                                                        }}
-                                                                        autoFocus
-                                                                    >
-                                                                        <InputOTPGroup>
-                                                                            <InputOTPSlot index={0} className={`w-12 h-12 text-lg font-bold ${pinError ? 'border-destructive' : ''}`} />
-                                                                            <InputOTPSlot index={1} className={`w-12 h-12 text-lg font-bold ${pinError ? 'border-destructive' : ''}`} />
-                                                                            <InputOTPSlot index={2} className={`w-12 h-12 text-lg font-bold ${pinError ? 'border-destructive' : ''}`} />
-                                                                            <InputOTPSlot index={3} className={`w-12 h-12 text-lg font-bold ${pinError ? 'border-destructive' : ''}`} />
-                                                                        </InputOTPGroup>
-                                                                    </InputOTP>
-                                                                </div>
-                                                                {pinError && <p className="text-xs text-destructive text-center font-medium mt-2">{pinError}</p>}
-                                                            </div>
-                                                            <div className="flex gap-2 justify-end">
-                                                                <button
-                                                                    onClick={() => { setPinStep("idle"); setPinValue(""); setPinConfirm(""); setPinError(null); }}
-                                                                    className="gum-btn text-sm px-4 py-2 bg-secondary hover:bg-secondary/80 font-bold"
-                                                                >
-                                                                    Cancel
-                                                                </button>
-                                                            </div>
-                                                        </motion.div>
-                                                    )}
-                                                </AnimatePresence>
-
-                                                {/* Change PIN button (only when lock is enabled and no flow active) */}
-                                                {appLockEnabled && pinStep === "idle" && (
-                                                    <div className="mt-4 pt-4 border-t border-border">
-                                                        <div className="flex items-center justify-between">
-                                                            <div>
-                                                                <h3 className="font-bold mb-1 text-sm">Change PIN</h3>
-                                                                <p className="text-xs text-muted-foreground">Update your app lock PIN to a new one.</p>
-                                                            </div>
-                                                            <button
-                                                                onClick={() => {
-                                                                    setPinStep("change-new");
-                                                                    setPinValue("");
-                                                                    setPinConfirm("");
-                                                                    setPinError(null);
-                                                                }}
-                                                                className="gum-btn text-sm px-4 py-2 bg-secondary hover:bg-secondary/80 font-bold"
-                                                            >
-                                                                Change
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                )}
-
-                                                {/* Info note */}
-                                                <p className="text-[11px] text-muted-foreground mt-4">
-                                                    This is a convenience lock stored in your browser. Clearing browser data will reset it.
-                                                </p>
                                             </div>
                                         </section>
                                     </motion.div>
@@ -1972,94 +1135,31 @@ const SettingsPage = () => {
                                                     <Bell className="text-primary" />
                                                     Push Notifications
                                                 </h2>
-                                                
-                                                <div className="flex flex-col gap-4">
-                                                    <div className="flex flex-col sm:flex-row items-start justify-between bg-secondary/30 p-4 sm:p-5 rounded-[3px] border border-border gap-4 sm:gap-0">
-                                                        <div className="pr-0 sm:pr-6">
-                                                            <h3 className="font-bold mb-2 flex items-center gap-2">
-                                                                {pushNotifications.isSubscribed ? <Bell size={18} className="text-primary" /> : <BellOff size={18} className="text-muted-foreground" />}
-                                                                {pushNotifications.isSubscribed ? "Notifications Enabled" : "Notifications Disabled"}
-                                                            </h3>
-                                                            <p className="text-sm text-muted-foreground mb-4 leading-relaxed">
-                                                                Get instantly notified when you receive a new whisper, or when someone engages with your posts. Alerts arrive natively via your OS, even when Genjutsu is closed.
-                                                            </p>
-                                                            
-                                                            <div className="space-y-2 mb-4 hidden sm:block">
-                                                                <div className="flex items-start gap-2 text-xs text-muted-foreground">
-                                                                    <div className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 shrink-0" />
-                                                                    <p><strong>Whisper Previews:</strong> See who sent it and a short secure preview.</p>
-                                                                </div>
-                                                                <div className="flex items-start gap-2 text-xs text-muted-foreground">
-                                                                    <div className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 shrink-0" />
-                                                                    <p><strong>Smart Suppression:</strong> Notifications are hidden if you are actively looking at the app.</p>
-                                                                </div>
-                                                                <div className="flex items-start gap-2 text-xs text-muted-foreground">
-                                                                    <div className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 shrink-0" />
-                                                                    <p><strong>Per-Device Security:</strong> Subscription is tied to this specific browser. You must enable it on every device you use.</p>
-                                                                </div>
-                                                            </div>
-
-                                                            {!pushNotifications.isSupported ? (
-                                                                <p className="text-sm text-destructive font-bold p-3 bg-destructive/10 border border-destructive/20 rounded-[3px] max-w-[500px]">
-                                                                    ⚠️ Push notifications are not supported in this browser setup. If you are on iOS, you must add this site to your Home Screen first!
-                                                                </p>
-                                                            ) : pushNotifications.permission === "denied" ? (
-                                                                <p className="text-sm text-destructive font-bold p-3 bg-destructive/10 border border-destructive/20 rounded-[3px] max-w-[500px]">
-                                                                    ⚠️ Notifications are blocked. Please allow them in your browser/device settings to proceed.
-                                                                </p>
-                                                            ) : null}
-                                                        </div>
-                                                        
-                                                        {pushNotifications.isSupported && pushNotifications.permission !== "denied" && (
-                                                            <button
-                                                                onClick={async () => {
-                                                                    const { error } = await pushNotifications.toggle();
-                                                                    if (error) {
-                                                                        toast.error(error);
-                                                                    } else {
-                                                                        toast.success(pushNotifications.isSubscribed ? "Push notifications disabled" : "Push notifications enabled!");
-                                                                    }
-                                                                }}
-                                                                disabled={pushNotifications.loading}
-                                                                className={`gum-btn shrink-0 w-full sm:w-28 h-10 flex items-center justify-center text-sm font-bold transition-all ${
-                                                                    pushNotifications.isSubscribed 
-                                                                        ? 'bg-background hover:bg-secondary text-foreground border-2 border-border' 
-                                                                        : 'bg-primary text-primary-foreground gum-shadow-sm'
-                                                                }`}
-                                                            >
-                                                                {pushNotifications.loading ? (
-                                                                    <FrogLoader size={16} />
-                                                                ) : pushNotifications.isSubscribed ? "Disable" : "Enable"}
-                                                            </button>
-                                                        )}
+                                                <div className="flex flex-col sm:flex-row items-start justify-between bg-secondary/30 p-4 rounded-[3px] border border-border gap-4">
+                                                    <div>
+                                                        <h3 className="font-bold mb-2 flex items-center gap-2">
+                                                            {pushNotifications.isSubscribed ? <Bell size={18} className="text-primary" /> : <BellOff size={18} className="text-muted-foreground" />}
+                                                            {pushNotifications.isSubscribed ? "Notifications Enabled" : "Notifications Disabled"}
+                                                        </h3>
+                                                        <p className="text-sm text-muted-foreground">Get instantly notified when you receive a new whisper or engagement.</p>
                                                     </div>
+                                                    {pushNotifications.isSupported && pushNotifications.permission !== "denied" && (
+                                                        <button
+                                                            onClick={async () => {
+                                                                const { error } = await pushNotifications.toggle();
+                                                                if (error) {
+                                                                    toast.error(error);
+                                                                } else {
+                                                                    toast.success(pushNotifications.isSubscribed ? "Push notifications disabled" : "Push notifications enabled!");
+                                                                }
+                                                            }}
+                                                            disabled={pushNotifications.loading}
+                                                            className={`gum-btn shrink-0 w-full sm:w-28 h-10 flex items-center justify-center text-sm font-bold ${pushNotifications.isSubscribed ? 'bg-background hover:bg-secondary text-foreground border-2 border-border' : 'bg-primary text-primary-foreground gum-shadow-sm'}`}
+                                                        >
+                                                            {pushNotifications.loading ? <FrogLoader size={16} /> : pushNotifications.isSubscribed ? "Disable" : "Enable"}
+                                                        </button>
+                                                    )}
                                                 </div>
-                                            </div>
-                                        </section>
-                                    </motion.div>
-                                )}
-
-                                {activeTab === "danger" && !dangerUnlockedSession && (
-                                    <motion.div
-                                        key="danger-locked"
-                                        initial={{ opacity: 0, scale: 0.95 }}
-                                        animate={{ opacity: 1, scale: 1 }}
-                                        exit={{ opacity: 0, scale: 0.95 }}
-                                        transition={{ duration: 0.2 }}
-                                        className="space-y-6"
-                                    >
-                                        <section className="gum-card p-6 flex flex-col items-center justify-center text-center py-16">
-                                            <div className="w-16 h-16 rounded-full bg-destructive/10 flex items-center justify-center mb-6">
-                                                <Lock size={32} className="text-destructive mb-1" />
-                                            </div>
-                                            <h2 className="text-2xl font-bold mb-2 text-foreground uppercase tracking-tight">Zone Sealed</h2>
-                                            <p className="text-sm text-muted-foreground mb-8 max-w-sm">
-                                                You have recently accessed the danger zone. For your security, this terminal has been locked.
-                                            </p>
-                                            
-                                            <div className="flex items-center gap-3 bg-secondary/50 border border-border px-6 py-4 rounded-[3px]">
-                                                <Clock className="text-destructive animate-pulse" size={20} />
-                                                <span className="font-mono text-2xl font-bold tracking-widest">{formatTime(dangerTimeLeft)}</span>
                                             </div>
                                         </section>
                                     </motion.div>
@@ -2079,75 +1179,58 @@ const SettingsPage = () => {
                                             <p className="text-sm text-muted-foreground mb-6">
                                                 {t("settings.dangerZoneDesc")}
                                             </p>
-
-                                            <div className="space-y-4">
-                                                <h3 className="text-base font-bold text-destructive mb-2 uppercase tracking-tight">{t("settings.deleteAccount")}</h3>
-                                                <p className="text-sm text-muted-foreground mb-4">
-                                                    {t("settings.deleteAccountDesc")}
-                                                </p>
-
-                                                <AlertDialog>
-                                                    <AlertDialogTrigger asChild>
-                                                        <button
-                                                            className="gum-btn bg-destructive hover:bg-destructive/90 text-white w-full sm:w-auto font-bold flex items-center justify-center gap-2"
-                                                        >
-                                                            <Shield size={18} className="animate-pulse" />
-                                                            {t("settings.exterminateAccount")}
-                                                        </button>
-                                                    </AlertDialogTrigger>
-                                                    <AlertDialogContent className="gum-card border-destructive/50">
-                                                        <AlertDialogHeader>
-                                                            <AlertDialogTitle className="text-destructive flex items-center gap-2">
-                                                                <Shield size={20} />
-                                                                {t("settings.areYouSure")}
-                                                            </AlertDialogTitle>
-                                                            <AlertDialogDescription asChild className="space-y-3">
-                                                                <div>
-                                                                    <p>
-                                                                        {t("settings.deleteConfirmDesc")} <span className="font-mono font-bold text-foreground">@{profile?.username}</span>
-                                                                    </p>
-                                                                    <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-[3px]">
-                                                                        <p className="text-xs font-bold text-destructive uppercase tracking-widest mb-1">{t("settings.typeUsername")}</p>
-                                                                        <input
-                                                                            id="delete-confirm"
-                                                                            name="delete-confirm"
-                                                                            type="text"
-                                                                            autoFocus
-                                                                            placeholder={profile?.username}
-                                                                            className="w-full bg-background border-2 border-destructive/30 rounded-[3px] px-3 py-2 text-sm font-mono focus:outline-none focus:border-destructive transition-colors"
-                                                                            onChange={(e) => setDeleteConfirmation(e.target.value)}
-                                                                        />
-                                                                    </div>
+                                            <AlertDialog>
+                                                <AlertDialogTrigger asChild>
+                                                    <button className="gum-btn bg-destructive hover:bg-destructive/90 text-white w-full sm:w-auto font-bold flex items-center justify-center gap-2">
+                                                        <Shield size={18} className="animate-pulse" />
+                                                        {t("settings.exterminateAccount")}
+                                                    </button>
+                                                </AlertDialogTrigger>
+                                                <AlertDialogContent className="gum-card border-destructive/50">
+                                                    <AlertDialogHeader>
+                                                        <AlertDialogTitle className="text-destructive flex items-center gap-2">
+                                                            <Shield size={20} />
+                                                            {t("settings.areYouSure")}
+                                                        </AlertDialogTitle>
+                                                        <AlertDialogDescription asChild className="space-y-3">
+                                                            <div>
+                                                                <p>{t("settings.deleteConfirmDesc")} <span className="font-mono font-bold text-foreground">@{profile?.username}</span></p>
+                                                                <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-[3px]">
+                                                                    <input
+                                                                        type="text"
+                                                                        autoFocus
+                                                                        placeholder={profile?.username}
+                                                                        className="w-full bg-background border-2 border-destructive/30 rounded-[3px] px-3 py-2 text-sm font-mono focus:outline-none focus:border-destructive"
+                                                                        onChange={(e) => setDeleteConfirmation(e.target.value)}
+                                                                    />
                                                                 </div>
-                                                            </AlertDialogDescription>
-                                                        </AlertDialogHeader>
-                                                        <AlertDialogFooter>
-                                                            <AlertDialogCancel className="rounded-[3px]">{t("settings.cancel")}</AlertDialogCancel>
-                                                            <AlertDialogAction
-                                                                disabled={deleteConfirmation !== profile?.username || isDeleting}
-                                                                onClick={handleDeleteAccount}
-                                                                className="bg-destructive text-white hover:bg-destructive/90 rounded-[3px] font-bold"
-                                                            >
-                                                                {isDeleting ? (
-                                                                    <FrogLoader size={16} className=" mr-2" />
-                                                                ) : null}
-                                                                {t("settings.finalDestruction")}
-                                                            </AlertDialogAction>
-                                                        </AlertDialogFooter>
-                                                    </AlertDialogContent>
-                                                </AlertDialog>
-                                            </div>
+                                                            </div>
+                                                        </AlertDialogDescription>
+                                                    </AlertDialogHeader>
+                                                    <AlertDialogFooter>
+                                                        <AlertDialogCancel className="rounded-[3px]">{t("settings.cancel")}</AlertDialogCancel>
+                                                        <AlertDialogAction
+                                                            disabled={deleteConfirmation !== profile?.username || isDeleting}
+                                                            onClick={handleDeleteAccount}
+                                                            className="bg-destructive text-white hover:bg-destructive/90 rounded-[3px] font-bold"
+                                                        >
+                                                            {isDeleting ? <FrogLoader size={16} className=" mr-2" /> : null}
+                                                            {t("settings.finalDestruction")}
+                                                        </AlertDialogAction>
+                                                    </AlertDialogFooter>
+                                                </AlertDialogContent>
+                                            </AlertDialog>
                                         </section>
                                     </motion.div>
                                 )}
                             </AnimatePresence>
 
-                            <p className="text-center text-xs text-muted-foreground mt-8">
-                                genjutsu — everything vanishes.
+                            <p className="text-center text-xs text-muted-foreground pt-4 pb-2">
+                                Katchapp — Make friends with interesting people.
                             </p>
                         </div>
                     </div>
-                </motion.div>
+                )}
             </main>
         </div>
     );

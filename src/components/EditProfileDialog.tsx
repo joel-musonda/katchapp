@@ -260,7 +260,7 @@ const EditProfileDialog = ({ currentProfile, onUpdate }: EditProfileDialogProps)
             if (avatarPreviewUrl) URL.revokeObjectURL(avatarPreviewUrl);
             setAvatarFile(file);
             setAvatarPreviewUrl(previewUrl);
-            setAvatarUrl(""); // Wipe explicit URL since user chose a file
+            setAvatarUrl("");
         } else {
             if (bannerPreviewUrl) URL.revokeObjectURL(bannerPreviewUrl);
             setBannerFile(file);
@@ -293,9 +293,7 @@ const EditProfileDialog = ({ currentProfile, onUpdate }: EditProfileDialogProps)
             let finalAvatarUrl = normalizedAvatarUrl;
             let finalBannerUrl = normalizedBannerUrl;
 
-            // Helper to upload files to Supabase inline
             const uploadFile = async (file: File, bucket: 'avatars' | 'banners') => {
-                // Compress file before upload. Avatars smaller than banners.
                 const compressedFile = await compressImage(file, {
                     maxWidthOrHeight: bucket === 'avatars' ? 400 : 1080,
                     maxSizeMB: bucket === 'avatars' ? 0.2 : 0.5,
@@ -334,14 +332,12 @@ const EditProfileDialog = ({ currentProfile, onUpdate }: EditProfileDialogProps)
                 await Promise.all(uploadPromises);
             }
 
-            // --- AUTO-DELETE OLD FILES IF URL CHANGED ---
             const cleanupOldFile = async (oldUrl: string | null, newUrl: string | null, bucket: 'avatars' | 'banners') => {
                 const bucketUrl = supabase.storage.from(bucket).getPublicUrl('').data.publicUrl;
                 if (oldUrl && oldUrl.includes(bucketUrl) && oldUrl !== newUrl) {
                     const oldPath = oldUrl.split(`${bucket}/`).pop();
                     if (oldPath) {
                         await supabase.storage.from(bucket).remove([oldPath]);
-                        console.log(`Cleaned up old ${bucket.slice(0, -1)} from storage:`, oldPath);
                     }
                 }
             };
@@ -350,7 +346,6 @@ const EditProfileDialog = ({ currentProfile, onUpdate }: EditProfileDialogProps)
                 cleanupOldFile(currentProfile.avatar_url, finalAvatarUrl, 'avatars'),
                 cleanupOldFile(currentProfile.banner_url, finalBannerUrl, 'banners')
             ]);
-            // --------------------------------------------
 
             const { error } = await supabase
                 .from("profiles")
@@ -417,15 +412,12 @@ const EditProfileDialog = ({ currentProfile, onUpdate }: EditProfileDialogProps)
                 if (attemptId !== previewAttemptIdRef.current) return;
                 setPlayingPreview(null);
             };
-            // Reflect intent instantly so the icon flips on first click.
             setPlayingPreview(previewUrl);
 
             try {
                 await audio.play();
             } catch (error: any) {
-                // Ignore stale rejections from previously replaced audio instances.
                 if (attemptId !== previewAttemptIdRef.current) return;
-                // Ignore aborts from quick toggle/close while play() is pending.
                 if (error?.name !== "AbortError") {
                     console.error("Preview playback failed:", error);
                     toast.error("Couldn't play song preview.");
@@ -438,55 +430,56 @@ const EditProfileDialog = ({ currentProfile, onUpdate }: EditProfileDialogProps)
     return (
         <Dialog open={open} onOpenChange={handleOpenChange}>
             <DialogTrigger asChild>
-                <button className="gum-btn border-2 border-foreground flex items-center gap-1.5 xs:gap-2 text-xs xs:text-sm !px-3 !py-2 xs:!px-5 xs:!py-2.5 whitespace-nowrap">
-                    <Edit3 size={15} className="xs:w-4 xs:h-4" /> Edit Profile
+                <button className="rounded-xl bg-secondary hover:bg-muted border border-input text-foreground font-semibold flex items-center gap-2 text-xs sm:text-sm px-4 py-2.5 transition-all shadow-sm active:scale-[0.98] whitespace-nowrap">
+                    <Edit3 size={16} /> Edit Profile
                 </button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-none w-full h-full max-h-none rounded-none gum-card border-none p-0 overflow-hidden flex flex-col [&>button:last-child]:hidden">
+            <DialogContent className="sm:max-w-4xl w-full h-full sm:h-[90vh] rounded-none sm:rounded-3xl bg-card border border-border/60 shadow-2xl p-0 overflow-hidden flex flex-col backdrop-blur-2xl [&>button:last-child]:hidden">
                 <DialogDescription className="sr-only">Update your display name, bio, social links, and profile images.</DialogDescription>
                 <form onSubmit={handleSubmit} className="flex flex-col h-full bg-background overflow-hidden">
                     {/* Top Navigation Bar */}
-                    <div className="flex items-center justify-between p-4 border-b-2 border-foreground bg-secondary shrink-0 z-10">
+                    <div className="flex items-center justify-between px-6 py-4 border-b border-border/60 bg-card/80 backdrop-blur-xl shrink-0 z-10">
                         <button
                             type="button"
                             onClick={() => handleOpenChange(false)}
-                            className="text-sm font-bold hover:underline px-4 py-2"
+                            className="text-sm font-semibold text-muted-foreground hover:text-foreground transition-colors px-3 py-1.5 rounded-xl hover:bg-muted/50"
                         >
                             Cancel
                         </button>
-                        <DialogTitle className="text-lg font-bold">Edit Profile</DialogTitle>
+                        <DialogTitle className="text-base font-bold tracking-tight">Edit Profile</DialogTitle>
                         <button
                             type="submit"
                             disabled={!canSubmit}
-                            className="bg-primary text-primary-foreground px-4 sm:px-8 py-2 rounded-[3px] font-bold border-2 border-foreground hover:bg-primary/90 transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="rounded-xl bg-primary text-primary-foreground font-semibold px-5 py-2.5 shadow-lg shadow-primary/25 hover:opacity-95 active:scale-[0.98] transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                            {submitting ? <FrogLoader className="" size={16} /> : "Save"}
+                            {submitting ? <FrogLoader size={16} /> : "Save Changes"}
                         </button>
                     </div>
 
                     <div className="flex-1 overflow-y-auto">
-                        <div className="max-w-6xl mx-auto grid lg:grid-cols-[1fr_400px] gap-6 sm:gap-8 p-4 sm:p-6 lg:p-12">
+                        <div className="max-w-5xl mx-auto grid lg:grid-cols-[1fr_420px] gap-8 p-6 sm:p-10">
                             {/* Left Column: Visual Previews */}
                             <div className="space-y-6">
-                                <Label className="font-bold text-xl block mb-4">Profile Appearance</Label>
-                                <div className="bg-secondary/5 rounded-[3px] border-2 border-foreground/10">
+                                <Label className="font-bold text-base block mb-2 text-foreground">Profile Appearance</Label>
+                                <div className="bg-card border border-border/60 rounded-3xl shadow-xl shadow-black/5 overflow-hidden backdrop-blur-2xl">
                                     {/* Banner Preview */}
-                                    <div className="h-40 sm:h-72 w-full bg-muted relative group overflow-hidden border-b-2 border-foreground/10 rounded-t-[3px]">
+                                    <div className="h-44 sm:h-72 w-full bg-muted relative group overflow-hidden border-b border-border/40">
                                         {(bannerPreviewUrl || bannerUrl) ? (
                                             <img src={getSafeUrl(bannerPreviewUrl || bannerUrl)} alt="Banner" className="w-full h-full object-cover" />
                                         ) : (
-                                            <div className="w-full h-full flex items-center justify-center text-muted-foreground bg-secondary/20">
+                                            <div className="w-full h-full flex items-center justify-center text-muted-foreground text-sm font-medium bg-muted/40">
                                                 No Banner Image
                                             </div>
                                         )}
-                                        <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                        <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-[2px]">
                                             <button
                                                 type="button"
                                                 onClick={() => bannerInputRef.current?.click()}
                                                 disabled={uploadingBanner}
-                                                className="p-5 bg-background shadow-xl rounded-full hover:bg-secondary gum-border transition-all transform scale-90 group-hover:scale-100"
+                                                className="p-4 bg-background/90 text-foreground shadow-xl rounded-2xl hover:bg-background transition-all transform scale-95 group-hover:scale-100 flex items-center gap-2 font-medium text-xs"
                                             >
-                                                {uploadingBanner ? <FrogLoader className="" size={28} /> : <Camera size={28} />}
+                                                {uploadingBanner ? <FrogLoader size={20} /> : <Camera size={20} />}
+                                                <span>Change Banner</span>
                                             </button>
                                         </div>
                                         <input
@@ -498,26 +491,26 @@ const EditProfileDialog = ({ currentProfile, onUpdate }: EditProfileDialogProps)
                                         />
                                     </div>
 
-                                    {/* Avatar Preview — inline on mobile, absolute on sm+ */}
-                                    <div className="flex sm:block">
-                                        {/* Mobile: centered inline avatar below banner */}
-                                        <div className="sm:hidden flex justify-center -mt-12 pb-4 w-full">
-                                            <div className="relative group w-24 h-24 rounded-[3px] gum-border border-[4px] border-background bg-secondary overflow-hidden shadow-2xl">
+                                    {/* Avatar Preview */}
+                                    <div className="flex sm:block p-6 pt-0">
+                                        {/* Mobile / Inline avatar */}
+                                        <div className="sm:hidden flex justify-center -mt-14 pb-2 w-full">
+                                            <div className="relative group w-24 h-24 rounded-2xl border-4 border-background bg-muted overflow-hidden shadow-xl">
                                                 {(avatarPreviewUrl || avatarUrl) ? (
                                                     <img src={getSafeUrl(avatarPreviewUrl || avatarUrl)} alt="Avatar" className="w-full h-full object-cover" />
                                                 ) : (
-                                                    <div className="w-full h-full flex items-center justify-center text-2xl font-bold bg-secondary">
+                                                    <div className="w-full h-full flex items-center justify-center text-xl font-bold bg-muted text-muted-foreground">
                                                         {displayName[0]?.toUpperCase() || "?"}
                                                     </div>
                                                 )}
-                                                <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                                <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-[2px]">
                                                     <button
                                                         type="button"
                                                         onClick={() => avatarInputRef.current?.click()}
                                                         disabled={uploadingAvatar}
-                                                        className="p-2 bg-background shadow-xl rounded-full hover:bg-secondary gum-border transition-all"
+                                                        className="p-2.5 bg-background/90 text-foreground shadow-lg rounded-xl hover:bg-background transition-all"
                                                     >
-                                                        {uploadingAvatar ? <FrogLoader className="" size={18} /> : <Camera size={18} />}
+                                                        {uploadingAvatar ? <FrogLoader size={16} /> : <Camera size={16} />}
                                                     </button>
                                                 </div>
                                                 <input
@@ -529,25 +522,25 @@ const EditProfileDialog = ({ currentProfile, onUpdate }: EditProfileDialogProps)
                                                 />
                                             </div>
                                         </div>
-                                        {/* Desktop: absolute overlapping avatar */}
-                                        <div className="hidden sm:block relative h-20">
-                                            <div className="absolute -top-16 left-8">
-                                                <div className="relative group w-40 h-40 rounded-[3px] gum-border border-[6px] border-background bg-secondary overflow-hidden shadow-2xl">
+                                        {/* Desktop overlapping avatar */}
+                                        <div className="hidden sm:block relative h-16">
+                                            <div className="absolute -top-16 left-6">
+                                                <div className="relative group w-32 h-32 rounded-2xl border-4 border-background bg-muted overflow-hidden shadow-2xl">
                                                     {(avatarPreviewUrl || avatarUrl) ? (
                                                         <img src={getSafeUrl(avatarPreviewUrl || avatarUrl)} alt="Avatar" className="w-full h-full object-cover" />
                                                     ) : (
-                                                        <div className="w-full h-full flex items-center justify-center text-3xl font-bold bg-secondary">
+                                                        <div className="w-full h-full flex items-center justify-center text-2xl font-bold bg-muted text-muted-foreground">
                                                             {displayName[0]?.toUpperCase() || "?"}
                                                         </div>
                                                     )}
-                                                    <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                                    <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-[2px]">
                                                         <button
                                                             type="button"
                                                             onClick={() => avatarInputRef.current?.click()}
                                                             disabled={uploadingAvatar}
-                                                            className="p-3 bg-background shadow-xl rounded-full hover:bg-secondary gum-border transition-all transform scale-90 group-hover:scale-100"
+                                                            className="p-3 bg-background/90 text-foreground shadow-xl rounded-xl hover:bg-background transition-all transform scale-95 group-hover:scale-100"
                                                         >
-                                                            {uploadingAvatar ? <FrogLoader className="" size={24} /> : <Camera size={24} />}
+                                                            {uploadingAvatar ? <FrogLoader size={20} /> : <Camera size={20} />}
                                                         </button>
                                                     </div>
                                                     <input
@@ -565,11 +558,11 @@ const EditProfileDialog = ({ currentProfile, onUpdate }: EditProfileDialogProps)
                             </div>
 
                             {/* Right Column: Profile Info */}
-                            <div className="space-y-8 lg:sticky lg:top-0 h-fit">
-                                <div className="space-y-4">
+                            <div className="space-y-6 lg:sticky lg:top-0 h-fit">
+                                <div className="space-y-2">
                                     <div className="flex items-center justify-between gap-3">
-                                        <Label htmlFor="displayName" className="font-bold text-lg block">Display Name</Label>
-                                        <span className="text-[11px] font-bold text-muted-foreground">
+                                        <Label htmlFor="displayName" className="font-semibold text-sm text-foreground">Display Name</Label>
+                                        <span className="text-xs font-medium text-muted-foreground">
                                             {displayNameCount}/{MAX_DISPLAY_NAME}
                                         </span>
                                     </div>
@@ -578,17 +571,18 @@ const EditProfileDialog = ({ currentProfile, onUpdate }: EditProfileDialogProps)
                                         value={displayName}
                                         onChange={(e) => setDisplayName(e.target.value)}
                                         maxLength={MAX_DISPLAY_NAME}
-                                        className="gum-border focus-visible:ring-primary text-base h-12 sm:h-14 px-4 bg-background"
+                                        className="rounded-2xl border border-input bg-background px-4 py-3 text-sm focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all shadow-sm"
                                         placeholder="What should we call you?"
                                     />
                                     <p className="text-xs text-muted-foreground">
                                         Keep it short and recognizable.
                                     </p>
                                 </div>
-                                <div className="space-y-4">
+
+                                <div className="space-y-2">
                                     <div className="flex items-center justify-between gap-3">
-                                        <Label htmlFor="bio" className="font-bold text-lg block">Bio</Label>
-                                        <span className="text-[11px] font-bold text-muted-foreground">
+                                        <Label htmlFor="bio" className="font-semibold text-sm text-foreground">Bio</Label>
+                                        <span className="text-xs font-medium text-muted-foreground">
                                             {bioCount}/{MAX_BIO}
                                         </span>
                                     </div>
@@ -597,43 +591,44 @@ const EditProfileDialog = ({ currentProfile, onUpdate }: EditProfileDialogProps)
                                         value={bio}
                                         onChange={(e) => setBio(e.target.value)}
                                         maxLength={MAX_BIO}
-                                        className="gum-border focus-visible:ring-primary min-h-[160px] text-base p-4 bg-background resize-none"
+                                        className="rounded-2xl border border-input bg-background p-4 text-sm min-h-[140px] resize-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all shadow-sm"
                                         placeholder="Write something about yourself..."
                                     />
                                 </div>
 
                                 {/* Social Links Section */}
-                                <div className="pt-6 border-t border-foreground/5">
+                                <div className="pt-4 border-t border-border/60">
                                     <button
                                         type="button"
                                         onClick={() => setShowSocials(!showSocials)}
-                                        className="flex items-center gap-2 text-xs font-bold text-muted-foreground hover:text-foreground transition-all p-3 rounded-[3px] hover:bg-secondary/50 w-full justify-between"
+                                        className="flex items-center gap-2 text-xs font-semibold text-muted-foreground hover:text-foreground transition-all p-3 rounded-xl hover:bg-muted/50 w-full justify-between"
                                     >
-                                        <div className="flex items-center gap-2 uppercase tracking-widest">
-                                            <LinkIcon size={14} />
-                                            {showSocials ? "Hide Social Platforms" : "Add Social Platforms"}
+                                        <div className="flex items-center gap-2">
+                                            <LinkIcon size={14} className="text-muted-foreground" />
+                                            <span>{showSocials ? "Hide Social Platforms" : "Add Social Platforms"}</span>
                                         </div>
                                         {showSocials ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                                     </button>
 
                                     {showSocials && (
-                                        <div className="mt-4 space-y-4 p-6 bg-secondary/5 rounded-[3px] gum-border animate-in slide-in-from-top-4 duration-300">
-                                            <p className="text-[11px] text-muted-foreground">
-                                                Paste full links. If you omit protocol, <code>https://</code> will be added automatically.
+                                        <div className="mt-3 space-y-4 p-5 bg-card border border-border/60 rounded-2xl shadow-sm animate-in slide-in-from-top-3 duration-200 backdrop-blur-xl">
+                                            <p className="text-xs text-muted-foreground leading-relaxed">
+                                                Paste full links. If you omit protocol, <code className="text-primary font-semibold">https://</code> will be added automatically.
                                             </p>
                                             {SOCIAL_PLATFORMS.map((platform) => (
-                                                <div key={platform.id} className="space-y-2">
-                                                    <Label htmlFor={platform.id} className="text-[10px] font-black uppercase tracking-wider opacity-60">
-                                                        {platform.label} link</Label>
+                                                <div key={platform.id} className="space-y-1.5">
+                                                    <Label htmlFor={platform.id} className="text-xs font-semibold text-muted-foreground">
+                                                        {platform.label}
+                                                    </Label>
                                                     <Input
                                                         id={platform.id}
                                                         value={socialLinks[platform.id] || ""}
                                                         onChange={(e) => setSocialLinks(prev => ({ ...prev, [platform.id]: e.target.value }))}
-                                                        className="h-11 text-sm gum-border focus-visible:ring-primary bg-background"
+                                                        className="rounded-xl border border-input bg-background h-10 text-xs focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
                                                         placeholder={platform.placeholder}
                                                     />
                                                     {socialLinkErrors[platform.id] && (
-                                                        <p className="text-[11px] text-destructive">{socialLinkErrors[platform.id]}</p>
+                                                        <p className="text-xs text-destructive font-medium mt-1">{socialLinkErrors[platform.id]}</p>
                                                     )}
                                                 </div>
                                             ))}
@@ -642,32 +637,32 @@ const EditProfileDialog = ({ currentProfile, onUpdate }: EditProfileDialogProps)
                                 </div>
 
                                 {/* Favorite Song Section */}
-                                <div className="pt-6 border-t border-foreground/5">
+                                <div className="pt-4 border-t border-border/60">
                                     <button
                                         type="button"
                                         onClick={() => setShowMusic(!showMusic)}
-                                        className="flex items-center gap-2 text-xs font-bold text-muted-foreground hover:text-foreground transition-all p-3 rounded-[3px] hover:bg-secondary/50 w-full justify-between"
+                                        className="flex items-center gap-2 text-xs font-semibold text-muted-foreground hover:text-foreground transition-all p-3 rounded-xl hover:bg-muted/50 w-full justify-between"
                                     >
-                                        <div className="flex items-center gap-2 uppercase tracking-widest">
-                                            <Music size={14} />
-                                            {favSong ? "Change Profile Music" : "Add Profile Music"}
+                                        <div className="flex items-center gap-2">
+                                            <Music size={14} className="text-muted-foreground" />
+                                            <span>{favSong ? "Change Profile Music" : "Add Profile Music"}</span>
                                         </div>
                                         {showMusic ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                                     </button>
 
                                     {showMusic && (
-                                        <div className="mt-4 space-y-4 p-6 bg-secondary/5 rounded-[3px] gum-border animate-in slide-in-from-top-4 duration-300">
+                                        <div className="mt-3 space-y-4 p-5 bg-card border border-border/60 rounded-2xl shadow-sm animate-in slide-in-from-top-3 duration-200 backdrop-blur-xl">
                                             {favSong && (
-                                                <div className="flex items-center gap-4 p-4 bg-background rounded-[3px] gum-border mb-4">
-                                                    <DataSaverImage src={favSong.artworkUrl100} className="w-12 h-12 rounded-[3px] object-cover" alt="" />
+                                                <div className="flex items-center gap-3 p-3 bg-background border border-border/60 rounded-2xl mb-3 shadow-sm">
+                                                    <DataSaverImage src={favSong.artworkUrl100} className="w-12 h-12 rounded-xl object-cover shadow-sm" alt="" />
                                                     <div className="flex-1 min-w-0">
-                                                        <p className="font-bold text-sm truncate">{favSong.trackName}</p>
-                                                        <p className="text-xs text-muted-foreground truncate">{favSong.artistName}</p>
+                                                        <p className="font-semibold text-xs truncate text-foreground">{favSong.trackName}</p>
+                                                        <p className="text-[11px] text-muted-foreground truncate">{favSong.artistName}</p>
                                                     </div>
                                                     <button
                                                         type="button"
                                                         onClick={() => setFavSong(null)}
-                                                        className="p-2 hover:bg-secondary rounded-full transition-colors"
+                                                        className="p-2 hover:bg-muted text-muted-foreground hover:text-destructive rounded-xl transition-colors"
                                                     >
                                                         <X size={16} />
                                                     </button>
@@ -680,35 +675,35 @@ const EditProfileDialog = ({ currentProfile, onUpdate }: EditProfileDialogProps)
                                                         value={songQuery}
                                                         onChange={(e) => setSongQuery(e.target.value)}
                                                         onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), searchSongs())}
-                                                        className="gum-border bg-background pl-10"
+                                                        className="rounded-xl border border-input bg-background pl-9 text-xs h-10 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
                                                         placeholder="Search artists or songs..."
                                                     />
-                                                    <Music className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
+                                                    <Music className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={14} />
                                                 </div>
                                                 <button
                                                     type="button"
                                                     onClick={searchSongs}
                                                     disabled={searching}
-                                                    className="bg-secondary p-3 rounded-[3px] border-2 border-foreground hover:opacity-80 disabled:opacity-50"
+                                                    className="rounded-xl bg-primary text-primary-foreground px-4 h-10 flex items-center justify-center shadow-md shadow-primary/20 hover:opacity-95 disabled:opacity-50 transition-all"
                                                 >
-                                                    {searching ? <FrogLoader className="" size={18} /> : <Search size={18} />}
+                                                    {searching ? <FrogLoader size={16} /> : <Search size={16} />}
                                                 </button>
                                             </div>
 
-                                            <div className="space-y-2 mt-4">
+                                            <div className="space-y-2 mt-3 max-h-60 overflow-y-auto pr-1">
                                                 {hasSearchedSongs && !searching && searchResults.length === 0 && (
-                                                    <p className="text-xs text-muted-foreground">
+                                                    <p className="text-xs text-muted-foreground text-center py-4">
                                                         No songs found. Try another keyword.
                                                     </p>
                                                 )}
                                                 {searchResults.map((song) => (
                                                     <div
                                                         key={song.trackId}
-                                                        className="flex items-center gap-3 p-3 bg-background rounded-[3px] hover:bg-secondary/50 transition-colors cursor-pointer group border-2 border-transparent hover:border-foreground/10"
+                                                        className="flex items-center gap-3 p-2.5 bg-background border border-border/40 rounded-xl hover:border-primary/40 transition-all cursor-pointer group shadow-sm"
                                                         onClick={() => setFavSong(song)}
                                                     >
                                                         <div className="relative w-10 h-10 shrink-0">
-                                                            <DataSaverImage src={song.artworkUrl100} className="w-full h-full rounded-[3px] object-cover" alt="" />
+                                                            <DataSaverImage src={song.artworkUrl100} className="w-full h-full rounded-lg object-cover shadow-sm" alt="" />
                                                             <button
                                                                 type="button"
                                                                 onClick={(e) => {
@@ -716,17 +711,17 @@ const EditProfileDialog = ({ currentProfile, onUpdate }: EditProfileDialogProps)
                                                                     togglePreview(song.previewUrl);
                                                                 }}
                                                                 disabled={!song.previewUrl}
-                                                                className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white transition-opacity rounded-[3px] disabled:opacity-60 disabled:cursor-not-allowed"
+                                                                className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white transition-opacity rounded-lg disabled:opacity-60 disabled:cursor-not-allowed backdrop-blur-[1px]"
                                                             >
                                                                 {playingPreview === song.previewUrl ? <Pause size={14} fill="currentColor" /> : <Play size={14} fill="currentColor" />}
                                                             </button>
                                                         </div>
                                                         <div className="flex-1 min-w-0">
-                                                            <p className="font-bold text-xs truncate">{song.trackName}</p>
+                                                            <p className="font-semibold text-xs truncate text-foreground">{song.trackName}</p>
                                                             <p className="text-[10px] text-muted-foreground truncate">{song.artistName}</p>
                                                         </div>
                                                         {favSong?.trackId === song.trackId && (
-                                                            <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+                                                            <div className="w-2 h-2 rounded-full bg-primary animate-pulse mr-1" />
                                                         )}
                                                     </div>
                                                 ))}
@@ -736,48 +731,48 @@ const EditProfileDialog = ({ currentProfile, onUpdate }: EditProfileDialogProps)
                                 </div>
 
                                 {/* URL Toggles */}
-                                <div className="pt-8 border-t border-foreground/5">
+                                <div className="pt-4 border-t border-border/60">
                                     <button
                                         type="button"
                                         onClick={() => setShowUrls(!showUrls)}
-                                        className="flex items-center gap-2 text-xs font-bold text-muted-foreground hover:text-foreground transition-all p-3 rounded-[3px] hover:bg-secondary/50 w-full justify-between"
+                                        className="flex items-center gap-2 text-xs font-semibold text-muted-foreground hover:text-foreground transition-all p-3 rounded-xl hover:bg-muted/50 w-full justify-between"
                                     >
                                         <div className="flex items-center gap-2">
-                                            <LinkIcon size={14} />
-                                            {showUrls ? "Hide Advanced Settings" : "Show Advanced: Edit via URL"}
+                                            <LinkIcon size={14} className="text-muted-foreground" />
+                                            <span>{showUrls ? "Hide Advanced Settings" : "Show Advanced: Edit via URL"}</span>
                                         </div>
                                         {showUrls ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                                     </button>
 
                                     {showUrls && (
-                                        <div className="mt-4 space-y-6 p-6 bg-secondary/5 rounded-[3px] gum-border animate-in slide-in-from-top-4 duration-300">
-                                            <p className="text-[11px] text-muted-foreground">
-                                                You can paste direct image links. If protocol is missing, <code>https://</code> will be added automatically.
+                                        <div className="mt-3 space-y-4 p-5 bg-card border border-border/60 rounded-2xl shadow-sm animate-in slide-in-from-top-3 duration-200 backdrop-blur-xl">
+                                            <p className="text-xs text-muted-foreground leading-relaxed">
+                                                You can paste direct image links. If protocol is missing, <code className="text-primary font-semibold">https://</code> will be added automatically.
                                             </p>
-                                            <div className="space-y-3">
-                                                <Label htmlFor="avatarUrl" className="text-xs font-bold uppercase tracking-wider opacity-60">Custom Avatar URL</Label>
+                                            <div className="space-y-1.5">
+                                                <Label htmlFor="avatarUrl" className="text-xs font-semibold text-muted-foreground">Custom Avatar URL</Label>
                                                 <Input
                                                     id="avatarUrl"
                                                     value={avatarUrl}
                                                     onChange={(e) => setAvatarUrl(e.target.value)}
-                                                    className="h-12 text-sm gum-border focus-visible:ring-primary bg-background"
+                                                    className="rounded-xl border border-input bg-background h-10 text-xs focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
                                                     placeholder="https://example.com/avatar.png"
                                                 />
                                                 {avatarUrlError && (
-                                                    <p className="text-[11px] text-destructive">{avatarUrlError}</p>
+                                                    <p className="text-xs text-destructive font-medium mt-1">{avatarUrlError}</p>
                                                 )}
                                             </div>
-                                            <div className="space-y-3">
-                                                <Label htmlFor="bannerUrl" className="text-xs font-bold uppercase tracking-wider opacity-60">Custom Banner URL</Label>
+                                            <div className="space-y-1.5">
+                                                <Label htmlFor="bannerUrl" className="text-xs font-semibold text-muted-foreground">Custom Banner URL</Label>
                                                 <Input
                                                     id="bannerUrl"
                                                     value={bannerUrl}
                                                     onChange={(e) => setBannerUrl(e.target.value)}
-                                                    className="h-12 text-sm gum-border focus-visible:ring-primary bg-background"
+                                                    className="rounded-xl border border-input bg-background h-10 text-xs focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
                                                     placeholder="https://example.com/banner.png"
                                                 />
                                                 {bannerUrlError && (
-                                                    <p className="text-[11px] text-destructive">{bannerUrlError}</p>
+                                                    <p className="text-xs text-destructive font-medium mt-1">{bannerUrlError}</p>
                                                 )}
                                             </div>
                                         </div>
@@ -788,10 +783,8 @@ const EditProfileDialog = ({ currentProfile, onUpdate }: EditProfileDialogProps)
                     </div>
                 </form>
             </DialogContent>
-
         </Dialog>
     );
 };
-
 
 export default EditProfileDialog;

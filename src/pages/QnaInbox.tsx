@@ -6,7 +6,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/hooks/useProfile";
 import Navbar from "@/components/Navbar";
-import Sidebar from "@/components/Sidebar";
 import { FrogLoader, FullScreenFrogLoader } from "@/components/ui/FrogLoader";
 import { Trash2, MessageSquareReply, Inbox, Link as LinkIcon } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -114,135 +113,145 @@ export default function QnaInbox() {
   const answered = (questions || []).filter((q) => q.is_answered);
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20 text-foreground">
       <Helmet>
-        <title>QnA Inbox — genjutsu</title>
-        <meta name="description" content="View and answer anonymous questions on genjutsu." />
+        <title>QnA Inbox — katchapp</title>
+        <meta name="description" content="View and answer anonymous questions on katchapp." />
       </Helmet>
+      
       <Navbar />
-      <main className="max-w-6xl mx-auto px-4 py-6">
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-6">
-          <div className="min-w-0 space-y-6">
-            {/* Header */}
-            <div className="gum-card p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 bg-primary/10 rounded-[3px]">
-                  <Inbox size={22} className="text-primary" />
-                </div>
-                <div>
-                  <h1 className="text-lg font-black tracking-tight uppercase">QnA Inbox</h1>
-                  <p className="text-xs text-muted-foreground">
-                    {unanswered.length} unanswered · {answered.length} answered
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={handleCopyLink}
-                className="gum-btn bg-secondary text-secondary-foreground text-xs flex items-center gap-2 w-fit"
-              >
-                <LinkIcon size={14} />
-                Copy Your QnA Link
-              </button>
-            </div>
 
-            {/* Questions list */}
-            {isLoading ? (
-              <div className="flex justify-center py-12">
-                <FrogLoader size={24} />
+      <main className="max-w-3xl mx-auto px-4 py-8">
+        <div className="space-y-6">
+          
+          {/* Header Card */}
+          <div className="bg-card border border-border/60 shadow-xl shadow-black/5 p-6 rounded-3xl backdrop-blur-2xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shadow-sm">
+                <Inbox size={22} />
               </div>
-            ) : unanswered.length === 0 && answered.length === 0 ? (
-              <div className="gum-card p-8 text-center border-dashed border-2">
-                <Inbox size={40} className="text-muted-foreground mx-auto mb-3 opacity-30" />
-                <p className="text-muted-foreground text-sm font-medium">No questions yet.</p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Share your QnA link to start receiving anonymous questions!
+              <div>
+                <h1 className="text-xl font-bold tracking-tight text-foreground">QnA Inbox</h1>
+                <p className="text-xs text-muted-foreground mt-0.5 font-medium">
+                  {unanswered.length} unanswered · {answered.length} answered
                 </p>
               </div>
-            ) : (
-              <>
-                {/* Unanswered */}
-                {unanswered.length > 0 && (
-                  <div className="space-y-3">
-                    <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground px-1">
-                      Unanswered ({unanswered.length})
-                    </h2>
-                    <AnimatePresence mode="popLayout">
-                      {unanswered.map((q) => (
-                        <motion.div
-                          key={q.id}
-                          layout
-                          initial={{ opacity: 0, y: 10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, scale: 0.95 }}
-                          className="gum-card p-5"
-                        >
-                          <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">
-                            {q.question_text}
-                          </p>
-                          <div className="flex items-center justify-between mt-4 pt-3 border-t border-secondary">
-                            <span className="text-[10px] text-muted-foreground font-medium">
-                              {timeAgo(q.created_at)}
-                            </span>
-                            <div className="flex items-center gap-2">
-                              <button
-                                onClick={() => handleDelete(q.id)}
-                                disabled={deletingIds.has(q.id)}
-                                className="gum-btn bg-secondary text-xs flex items-center gap-1.5 text-muted-foreground hover:text-destructive transition-colors disabled:opacity-40"
-                              >
-                                <Trash2 size={13} />
-                                Delete
-                              </button>
-                              <button
-                                onClick={() => handleAnswer(q)}
-                                className="gum-btn bg-primary text-primary-foreground text-xs flex items-center gap-1.5"
-                              >
-                                <MessageSquareReply size={13} />
-                                Answer on Feed
-                              </button>
-                            </div>
-                          </div>
-                        </motion.div>
-                      ))}
-                    </AnimatePresence>
-                  </div>
-                )}
+            </div>
+            <button
+              onClick={handleCopyLink}
+              className="rounded-xl bg-background border border-input text-foreground text-xs font-semibold py-3 px-4 flex items-center justify-center gap-2 hover:bg-muted/50 hover:border-border transition-all shadow-sm active:scale-[0.98]"
+            >
+              <LinkIcon size={14} className="text-muted-foreground" />
+              Copy Your QnA Link
+            </button>
+          </div>
 
-                {/* Answered */}
-                {answered.length > 0 && (
-                  <div className="space-y-3">
-                    <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground px-1">
-                      Answered ({answered.length})
-                    </h2>
-                    {answered.map((q) => (
-                      <div key={q.id} className="gum-card p-5 opacity-60">
-                        <p className="text-sm leading-relaxed whitespace-pre-wrap break-words line-through decoration-muted-foreground/30">
+          {/* Questions list / Skeleton / Empty state */}
+          {isLoading ? (
+            <div className="space-y-4">
+              {[1, 2, 3].map((n) => (
+                <div key={n} className="bg-card border border-border/60 p-6 rounded-3xl animate-pulse space-y-4 shadow-sm">
+                  <div className="h-4 bg-muted rounded-xl w-4/5" />
+                  <div className="h-4 bg-muted rounded-xl w-2/5" />
+                  <div className="flex items-center justify-between pt-4 border-t border-border/40">
+                    <div className="h-3 bg-muted rounded-lg w-16" />
+                    <div className="flex gap-2">
+                      <div className="h-9 bg-muted rounded-xl w-20" />
+                      <div className="h-9 bg-muted rounded-xl w-32" />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : unanswered.length === 0 && answered.length === 0 ? (
+            <div className="bg-card border border-border/60 border-dashed p-12 text-center rounded-3xl shadow-sm backdrop-blur-2xl">
+              <div className="w-16 h-16 rounded-2xl bg-muted/50 border border-border/60 flex items-center justify-center mx-auto mb-4 text-muted-foreground/60">
+                <Inbox size={28} />
+              </div>
+              <p className="text-foreground text-base font-semibold mb-1">No questions yet</p>
+              <p className="text-xs text-muted-foreground max-w-sm mx-auto leading-relaxed">
+                Share your QnA link with friends or on your profile to start receiving anonymous questions!
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-8">
+              {/* Unanswered */}
+              {unanswered.length > 0 && (
+                <div className="space-y-3">
+                  <h2 className="text-xs font-semibold text-muted-foreground px-1 tracking-wider uppercase">
+                    Unanswered ({unanswered.length})
+                  </h2>
+                  <AnimatePresence mode="popLayout">
+                    {unanswered.map((q) => (
+                      <motion.div
+                        key={q.id}
+                        layout
+                        initial={{ opacity: 0, y: 15 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.95 }}
+                        className="bg-card border border-border/60 shadow-xl shadow-black/5 p-6 rounded-3xl backdrop-blur-2xl transition-all hover:border-primary/30"
+                      >
+                        <p className="text-sm leading-relaxed whitespace-pre-wrap break-words text-foreground font-normal">
                           {q.question_text}
                         </p>
-                        <div className="flex items-center justify-between mt-4 pt-3 border-t border-secondary">
-                          <span className="text-[10px] text-muted-foreground font-medium">
+                        <div className="flex items-center justify-between mt-5 pt-4 border-t border-border/50">
+                          <span className="text-xs text-muted-foreground font-medium">
                             {timeAgo(q.created_at)}
                           </span>
-                          <button
-                            onClick={() => handleDelete(q.id)}
-                            disabled={deletingIds.has(q.id)}
-                            className="gum-btn bg-secondary text-xs flex items-center gap-1.5 text-muted-foreground hover:text-destructive transition-colors disabled:opacity-40"
-                          >
-                            <Trash2 size={13} />
-                            Remove
-                          </button>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleDelete(q.id)}
+                              disabled={deletingIds.has(q.id)}
+                              className="rounded-xl bg-background border border-input hover:border-destructive/40 text-muted-foreground hover:text-destructive text-xs font-medium px-3.5 py-2 transition-all disabled:opacity-40 flex items-center gap-1.5 shadow-sm active:scale-[0.98]"
+                            >
+                              <Trash2 size={13} />
+                              Delete
+                            </button>
+                            <button
+                              onClick={() => handleAnswer(q)}
+                              className="rounded-xl bg-primary text-primary-foreground text-xs font-semibold px-4 py-2 shadow-md shadow-primary/20 hover:opacity-95 active:scale-[0.98] transition-all flex items-center gap-1.5"
+                            >
+                              <MessageSquareReply size={13} />
+                              Answer on Feed
+                            </button>
+                          </div>
                         </div>
-                      </div>
+                      </motion.div>
                     ))}
-                  </div>
-                )}
-              </>
-            )}
-          </div>
+                  </AnimatePresence>
+                </div>
+              )}
 
-          {/* Sidebar */}
-          <div className="hidden lg:block lg:sticky lg:top-20 self-start max-h-[calc(100vh-6rem)] overflow-y-auto pr-2 custom-scrollbar">
-            <Sidebar />
-          </div>
+              {/* Answered */}
+              {answered.length > 0 && (
+                <div className="space-y-3">
+                  <h2 className="text-xs font-semibold text-muted-foreground px-1 tracking-wider uppercase">
+                    Answered ({answered.length})
+                  </h2>
+                  {answered.map((q) => (
+                    <div key={q.id} className="bg-card/60 border border-border/40 shadow-sm p-6 rounded-3xl opacity-70 backdrop-blur-xl">
+                      <p className="text-sm leading-relaxed whitespace-pre-wrap break-words line-through decoration-muted-foreground/40 text-muted-foreground">
+                        {q.question_text}
+                      </p>
+                      <div className="flex items-center justify-between mt-5 pt-4 border-t border-border/40">
+                        <span className="text-xs text-muted-foreground/80 font-medium">
+                          {timeAgo(q.created_at)}
+                        </span>
+                        <button
+                          onClick={() => handleDelete(q.id)}
+                          disabled={deletingIds.has(q.id)}
+                          className="rounded-xl bg-background border border-input hover:border-destructive/40 text-muted-foreground hover:text-destructive text-xs font-medium px-3.5 py-2 transition-all disabled:opacity-40 flex items-center gap-1.5 shadow-sm active:scale-[0.98]"
+                        >
+                          <Trash2 size={13} />
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </main>
     </div>

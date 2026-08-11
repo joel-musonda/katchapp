@@ -2,10 +2,10 @@ import { createContext, useContext, useEffect, useRef, useState } from "react";
 
 type Theme = "dark" | "light" | "system";
 type ColorPreset = "purple" | "blue" | "green" | "orange" | "rose" | "zinc" | "custom";
-type FontPreset = "Reddit Mono" | "Inter" | "Space Grotesk" | "Fira Code" | "JetBrains Mono" | "Comic Neue";
+type FontPreset = "Reddit Mono" | "Inter" | "Space Grotesk" | "Fira Code" | "JetBrains Mono" | "Comic Neue" | "Geist" | "Outfit" | "Plus Jakarta Sans";
 type RadiusPreset = "none" | "default" | "md" | "lg" | "full";
 export type EmojiPack = "native" | "twemoji" | "google" | "openmoji";
-export type ThemePreset = "default" | "minecraft" | "win95" | "papyrus" | "hackernews" | "winxp" | "gameboy" | "nord" | "terminal";
+export type ThemePreset = "default" | "minecraft" | "win95" | "papyrus" | "hackernews" | "winxp" | "gameboy" | "nord" | "terminal" | "glassmorphism" | "cyberpunk" | "aurora";
 
 /** Convert a hex color (#rrggbb) to an HSL string "H S% L%" suitable for CSS variables. */
 function hexToHsl(hex: string): string {
@@ -52,6 +52,9 @@ const fontFamilies = {
     "Fira Code": "'Fira Code', monospace",
     "JetBrains Mono": "'JetBrains Mono', monospace",
     "Comic Neue": "'Comic Neue', cursive",
+    "Geist": "'Geist', sans-serif",
+    "Outfit": "'Outfit', sans-serif",
+    "Plus Jakarta Sans": "'Plus Jakarta Sans', sans-serif",
 };
 
 const legacyStorageKey = "genjutsu-appearance";
@@ -59,10 +62,11 @@ const appearanceSuffixes = [
     "theme", "preset", "color", "customColor", "font", "grid", "radius",
     "emojiPack", "animateColor", "cursorTrail", "dataSaver", "soundEnabled", "shadowWalk",
 ] as const;
+
 const themeValues = ["dark", "light", "system"] as const;
-const presetValues = ["default", "minecraft", "win95", "papyrus", "hackernews", "winxp", "gameboy", "nord", "terminal"] as const;
+const presetValues = ["default", "minecraft", "win95", "papyrus", "hackernews", "winxp", "gameboy", "nord", "terminal", "glassmorphism", "cyberpunk", "aurora"] as const;
 const colorValues = ["purple", "blue", "green", "orange", "rose", "zinc", "custom"] as const;
-const fontValues = ["Reddit Mono", "Inter", "Space Grotesk", "Fira Code", "JetBrains Mono", "Comic Neue"] as const;
+const fontValues = ["Reddit Mono", "Inter", "Space Grotesk", "Fira Code", "JetBrains Mono", "Comic Neue", "Geist", "Outfit", "Plus Jakarta Sans"] as const;
 const gridValues = ["blueprint", "dotted", "scanlines", "none"] as const;
 const radiusValues = ["none", "default", "md", "lg", "full"] as const;
 const emojiPackValues = ["native", "twemoji", "google", "openmoji"] as const;
@@ -125,9 +129,9 @@ const initialState: ThemeProviderState = {
     preset: "default",
     color: "purple",
     customColor: "#8b5cf6",
-    font: "Reddit Mono",
-    grid: "none", // Default changed from "blueprint" to "none"[cite: 10]
-    radius: "default",
+    font: "Geist",
+    grid: "none",
+    radius: "md",
     emojiPack: "twemoji",
     animateColor: false,
     cursorTrail: false,
@@ -170,13 +174,13 @@ export function ThemeProvider({
         return oneOf(getInitialItem("color"), colorValues, "purple");
     });
     const [font, setFontState] = useState<FontPreset>(() => {
-        return oneOf(getInitialItem("font"), fontValues, "Reddit Mono");
+        return oneOf(getInitialItem("font"), fontValues, "Geist");
     });
     const [grid, setGridState] = useState<GridPreset>(() => {
-        return oneOf(getInitialItem("grid"), gridValues, "none"); // Default fallback changed to "none"[cite: 10]
+        return oneOf(getInitialItem("grid"), gridValues, "none");
     });
     const [radius, setRadiusState] = useState<RadiusPreset>(() => {
-        return oneOf(getInitialItem("radius"), radiusValues, "default");
+        return oneOf(getInitialItem("radius"), radiusValues, "md");
     });
     const [emojiPack, setEmojiPackState] = useState<EmojiPack>(() => {
         return oneOf(getInitialItem("emojiPack"), emojiPackValues, "twemoji");
@@ -185,7 +189,10 @@ export function ThemeProvider({
         return getInitialItem("customColor") || "#8b5cf6";
     });
     const [animateColor, setAnimateColorState] = useState<boolean>(() => {
-        return getInitialItem("animateColor") === "true";
+        const stored = getInitialItem("animateColor");
+        if (stored !== null) return stored === "true";
+        // Respect prefers-reduced-motion out of the box
+        return !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     });
     const [cursorTrail, setCursorTrailState] = useState<boolean>(() => {
         return getInitialItem("cursorTrail") === "true";
@@ -203,8 +210,19 @@ export function ThemeProvider({
     const hueRef = useRef<number>(0);
     const rafRef = useRef<number | null>(null);
 
-    const setTheme = (val: Theme) => { safeSetItem(`${storageKey}-theme`, val); setThemeState(val); };
-    const setPreset = (val: ThemePreset) => { safeSetItem(`${storageKey}-preset`, val); setPresetState(val); };
+    // Modern View Transitions API Helper for smooth state shifts
+    const updateWithTransition = (callback: () => void) => {
+        if (typeof document !== "undefined" && "startViewTransition" in document) {
+            document.startViewTransition(() => {
+                callback();
+            });
+        } else {
+            callback();
+        }
+    };
+
+    const setTheme = (val: Theme) => { updateWithTransition(() => { safeSetItem(`${storageKey}-theme`, val); setThemeState(val); }); };
+    const setPreset = (val: ThemePreset) => { updateWithTransition(() => { safeSetItem(`${storageKey}-preset`, val); setPresetState(val); }); };
     const setColor = (val: ColorPreset) => { safeSetItem(`${storageKey}-color`, val); setColorState(val); };
     const setCustomColor = (hex: string) => { safeSetItem(`${storageKey}-customColor`, hex); setCustomColorState(hex); };
     const setFont = (val: FontPreset) => { safeSetItem(`${storageKey}-font`, val); setFontState(val); };
@@ -217,7 +235,7 @@ export function ThemeProvider({
     const setSoundEnabled = (val: boolean) => { safeSetItem(`${storageKey}-soundEnabled`, String(val)); setSoundEnabledState(val); };
     const setShadowWalk = (val: boolean) => { safeSetItem(`${storageKey}-shadowWalk`, String(val)); setShadowWalkState(val); document.documentElement.setAttribute('data-shadow-walk', String(val)); };
 
-    // Mode + static color + radius effect[cite: 10]
+    // Mode + static color + radius effect
     useEffect(() => {
         const root = window.document.documentElement;
         root.classList.remove("light", "dark");
@@ -234,7 +252,7 @@ export function ThemeProvider({
         root.setAttribute("data-data-saver", String(dataSaver));
         root.setAttribute("data-shadow-walk", String(shadowWalk));
 
-        // Only apply static color when animation is off[cite: 10]
+        // Only apply static color when animation is off
         if (!animateColor) {
             const rootStyles = document.documentElement.style;
             if (color === "custom") {
@@ -242,22 +260,22 @@ export function ThemeProvider({
                 rootStyles.setProperty('--primary', hsl);
                 rootStyles.setProperty('--glow', hsl);
             } else {
-                const preset = colorPresets[color] || colorPresets.purple;
+                const presetObj = colorPresets[color] || colorPresets.purple;
                 if (activeTheme === "dark") {
-                    rootStyles.setProperty('--primary', preset.dark);
-                    rootStyles.setProperty('--glow', preset.glowD);
+                    rootStyles.setProperty('--primary', presetObj.dark);
+                    rootStyles.setProperty('--glow', presetObj.glowD);
                 } else {
-                    rootStyles.setProperty('--primary', preset.light);
-                    rootStyles.setProperty('--glow', preset.glowL);
+                    rootStyles.setProperty('--primary', presetObj.light);
+                    rootStyles.setProperty('--glow', presetObj.glowL);
                 }
             }
         }
 
-        // Apply Radius[cite: 10]
+        // Apply Radius
         document.documentElement.style.setProperty('--radius', radiusPresets[radius]);
     }, [theme, preset, color, customColor, radius, emojiPack, animateColor, grid, dataSaver, shadowWalk]);
 
-    // Animated color loop — smooth 60fps hue cycling via requestAnimationFrame[cite: 10]
+    // Animated color loop — smooth 60fps hue cycling via requestAnimationFrame
     useEffect(() => {
         if (!animateColor) {
             if (rafRef.current !== null) {
@@ -285,20 +303,22 @@ export function ThemeProvider({
         };
     }, [animateColor]);
 
-    // Dynamic Font Injector Effect[cite: 10]
+    // Dynamic Font Injector Effect for modern Google Fonts
     useEffect(() => {
         const rootStyles = document.documentElement.style;
-        rootStyles.setProperty('--font-sans', fontFamilies[font]);
-        rootStyles.setProperty('--font-mono', fontFamilies[font]);
+        const fontFamilyValue = fontFamilies[font];
+        rootStyles.setProperty('--font-sans', fontFamilyValue);
+        rootStyles.setProperty('--font-mono', fontFamilyValue);
 
-        if (font !== "Reddit Mono") {
+        const standardSystemFonts = ["Reddit Mono", "Inter", "Fira Code", "JetBrains Mono"];
+        if (!standardSystemFonts.includes(font)) {
             const fontName = font.replace(/ /g, "+");
             const linkId = `dynamic-font-${fontName}`;
             if (!document.getElementById(linkId)) {
                 const link = document.createElement("link");
                 link.id = linkId;
                 link.rel = "stylesheet";
-                link.href = `https://fonts.googleapis.com/css2?family=${fontName}:wght@300;400;500;600;700&display=swap`;
+                link.href = `https://fonts.googleapis.com/css2?family=${fontName}:wght@300;400;500;600;700;800&display=swap`;
                 document.head.appendChild(link);
             }
         }

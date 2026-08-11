@@ -65,12 +65,14 @@ export default function QnaPage() {
 
   if (isError || !profile) {
     return (
-      <div className="min-h-screen bg-background text-foreground flex flex-col items-center justify-center p-4 text-center">
-        <h2 className="text-xl font-black uppercase tracking-tight mb-2">User Not Found</h2>
-        <p className="text-muted-foreground text-sm mb-6">This user doesn't exist or their profile is unavailable.</p>
-        <Link to="/" className="gum-btn bg-primary text-primary-foreground text-sm">
-          Go Home
-        </Link>
+      <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20 text-foreground flex flex-col items-center justify-center p-4 text-center">
+        <div className="bg-card border border-border/60 shadow-2xl rounded-3xl p-8 max-w-sm w-full backdrop-blur-2xl">
+          <h2 className="text-xl font-bold tracking-tight mb-2">User Not Found</h2>
+          <p className="text-muted-foreground text-sm mb-6">This user doesn't exist or their profile is unavailable.</p>
+          <Link to="/" className="w-full inline-block rounded-xl bg-primary text-primary-foreground font-semibold text-sm py-3 px-4 shadow-lg shadow-primary/25 hover:opacity-95 transition-all">
+            Go Home
+          </Link>
+        </div>
       </div>
     );
   }
@@ -83,46 +85,46 @@ export default function QnaPage() {
     .slice(0, 2) || "??";
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20 text-foreground flex flex-col justify-between">
       <Helmet>
-        <title>Ask @{profile.username} — genjutsu</title>
-        <meta name="description" content={`Send an anonymous question to ${profile.display_name || profile.username} on genjutsu.`} />
-        <meta property="og:title" content={`Ask @${profile.username} anonymously — genjutsu`} />
-        <meta property="og:description" content={`Send an anonymous question to ${profile.display_name || profile.username} on genjutsu. They won't know who asked.`} />
+        <title>Ask @{profile.username} — katchapp</title>
+        <meta name="description" content={`Send an anonymous question to ${profile.display_name || profile.username} on katchapp.`} />
+        <meta property="og:title" content={`Ask @{profile.username} anonymously — katchapp`} />
+        <meta property="og:description" content={`Send an anonymous question to ${profile.display_name || profile.username} on katchapp. They won't know who asked.`} />
         <meta property="og:image" content={profile.avatar_url || "/fav.jpg"} />
         <meta name="twitter:card" content="summary" />
-        <meta name="twitter:title" content={`Ask @${profile.username} anonymously — genjutsu`} />
-        <meta name="twitter:description" content={`Send an anonymous question to ${profile.display_name || profile.username} on genjutsu.`} />
+        <meta name="twitter:title" content={`Ask @{profile.username} anonymously — katchapp`} />
+        <meta name="twitter:description" content={`Send an anonymous question to ${profile.display_name || profile.username} on katchapp.`} />
         <meta name="twitter:image" content={profile.avatar_url || "/fav.jpg"} />
       </Helmet>
 
-      <div className="max-w-lg mx-auto px-4 py-10">
+      <div className="max-w-md mx-auto px-4 py-10 w-full flex-1 flex flex-col justify-center">
         {/* Back link */}
         <Link
           to={`/u/${profile.username}`}
-          className="inline-flex items-center gap-2 px-3 py-1.5 gum-card bg-secondary text-xs font-bold hover:bg-primary hover:text-primary-foreground transition-colors w-fit mb-8"
+          className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-muted/50 hover:bg-muted text-sm font-medium text-muted-foreground hover:text-foreground transition-all duration-200 w-fit mb-6"
         >
-          <ArrowLeft size={14} />
+          <ArrowLeft size={16} />
           View Profile
         </Link>
 
         {/* Profile card */}
         <motion.div
-          initial={{ opacity: 0, y: 10 }}
+          initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
-          className="gum-card p-6 text-center mb-6"
+          className="bg-card border border-border/60 shadow-xl shadow-black/5 p-6 rounded-3xl text-center mb-6 backdrop-blur-2xl"
         >
-          <div className="w-20 h-20 rounded-[3px] gum-border bg-secondary flex items-center justify-center text-2xl font-bold mx-auto mb-4 overflow-hidden">
+          <div className="w-20 h-20 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center text-xl font-bold mx-auto mb-4 overflow-hidden shadow-md">
             {profile.avatar_url ? (
               <img src={profile.avatar_url} alt={profile.username} className="w-full h-full object-cover" loading="lazy" />
             ) : initials}
           </div>
-          <h1 className="text-xl font-black tracking-tight">{profile.display_name}</h1>
-          <p className="text-muted-foreground text-sm mt-1">@{profile.username}</p>
+          <h1 className="text-xl font-bold tracking-tight text-foreground">{profile.display_name}</h1>
+          <p className="text-muted-foreground text-sm mt-0.5">@{profile.username}</p>
 
-          <div className="flex items-center justify-center gap-2 mt-4 text-primary">
-            <MessageCircle size={18} />
-            <span className="text-sm font-bold uppercase tracking-wider">Ask me anything</span>
+          <div className="inline-flex items-center gap-2 mt-4 px-3.5 py-1.5 rounded-full bg-primary/10 text-primary text-xs font-semibold">
+            <MessageCircle size={14} />
+            <span>Ask me anything</span>
           </div>
         </motion.div>
 
@@ -134,16 +136,16 @@ export default function QnaPage() {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0 }}
-              className="gum-card p-8 text-center"
+              className="bg-card border border-border/60 shadow-xl shadow-black/5 p-8 rounded-3xl text-center backdrop-blur-2xl"
             >
-              <CheckCircle size={48} className="text-green-500 mx-auto mb-4" />
-              <h2 className="text-lg font-black uppercase tracking-tight mb-2">Question Sent!</h2>
-              <p className="text-muted-foreground text-sm mb-6">
+              <CheckCircle size={48} className="text-emerald-500 mx-auto mb-4" />
+              <h2 className="text-lg font-bold tracking-tight mb-2">Question Sent!</h2>
+              <p className="text-muted-foreground text-sm mb-6 leading-relaxed">
                 Your question has been delivered anonymously to @{profile.username}. They may answer it on their feed.
               </p>
               <button
                 onClick={() => setSubmitted(false)}
-                className="gum-btn bg-primary text-primary-foreground text-sm"
+                className="w-full rounded-xl bg-primary text-primary-foreground text-sm font-semibold py-3.5 shadow-lg shadow-primary/25 hover:opacity-95 active:scale-[0.98] transition-all"
               >
                 Ask Another Question
               </button>
@@ -151,12 +153,12 @@ export default function QnaPage() {
           ) : (
             <motion.div
               key="form"
-              initial={{ opacity: 0, y: 10 }}
+              initial={{ opacity: 0, y: 15 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0 }}
-              className="gum-card p-6"
+              className="bg-card border border-border/60 shadow-xl shadow-black/5 p-6 sm:p-8 rounded-3xl backdrop-blur-2xl"
             >
-              <label htmlFor="qna-question" className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3">
+              <label htmlFor="qna-question" className="block text-xs font-semibold text-muted-foreground mb-2">
                 Your Question (Anonymous)
               </label>
               <textarea
@@ -167,32 +169,32 @@ export default function QnaPage() {
                   if (error) setError("");
                 }}
                 placeholder="Type your question here..."
-                className="w-full bg-secondary/40 gum-border p-3 resize-none outline-none text-sm min-h-[120px] rounded-[3px] placeholder:text-muted-foreground"
+                className="w-full bg-background border border-input p-4 resize-none outline-none text-sm min-h-[140px] rounded-2xl focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-muted-foreground/40"
                 maxLength={500}
                 rows={4}
               />
-              <div className="flex items-center justify-between mt-3">
+              <div className="flex items-center justify-between mt-4">
                 <span className={`text-xs font-medium ${question.length > 450 ? "text-destructive" : "text-muted-foreground"}`}>
                   {question.length}/500
                 </span>
                 <button
                   onClick={handleSubmit}
                   disabled={!question.trim() || submitting}
-                  className="gum-btn bg-primary text-primary-foreground text-sm disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
+                  className="rounded-xl bg-primary text-primary-foreground text-sm font-semibold px-5 py-3 shadow-lg shadow-primary/25 hover:opacity-95 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
-                  {submitting ? <FrogLoader size={14} /> : <Send size={14} />}
+                  {submitting ? <FrogLoader size={16} /> : <Send size={16} />}
                   {submitting ? "Sending..." : "Send Question"}
                 </button>
               </div>
               {error && (
-                <p className="text-destructive text-xs font-medium mt-2">{error}</p>
+                <p className="text-destructive text-xs font-medium mt-3 bg-destructive/10 px-3 py-2 rounded-xl border border-destructive/20">{error}</p>
               )}
             </motion.div>
           )}
         </AnimatePresence>
 
         {/* Footer */}
-        <p className="text-center text-[10px] text-muted-foreground mt-8">
+        <p className="text-center text-xs text-muted-foreground mt-8">
           Questions are submitted anonymously. Be kind. ❤️
         </p>
       </div>

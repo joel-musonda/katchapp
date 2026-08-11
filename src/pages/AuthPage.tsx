@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import { Eye, EyeOff, Sparkles, ArrowLeft, Mail } from "lucide-react";
+import { Eye, EyeOff, Sparkles, ArrowLeft, Mail, Compass, Users, Heart, MapPin } from "lucide-react";
 import { FrogLoader } from "@/components/ui/FrogLoader";
 import { motion, AnimatePresence } from "framer-motion";
 import { z } from "zod";
@@ -81,10 +81,8 @@ const AuthPage = () => {
             setError(error.message || "Sign up failed");
           }
         } else if (!data?.session) {
-          // Email confirmation is enabled
-          setSuccess("Genjutsu initiated! Check your email (and spam) to confirm the illusion. If it doesn't arrive, try continuing with Google or GitHub.");
+          setSuccess("Katchapp connection initiated! Check your email (and spam) to confirm your account. If it doesn't arrive, try continuing with Google or GitHub.");
         } else {
-          // Logged in immediately (confirmation disabled)
           navigate("/");
         }
       } else {
@@ -116,386 +114,389 @@ const AuthPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background relative flex items-center justify-center overflow-x-hidden">
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20 relative flex items-center justify-center overflow-x-hidden px-4 py-8">
       <Helmet>
-        <title>Join genjutsu — Everything Vanishes</title>
-        <meta name="description" content="Sign in or create an account to start sharing your code in the 24-hour social network." />
+        <title>Join katchapp — Find Friends with Similar Hobbies Near You</title>
+        <meta name="description" content="Sign in or create an account on katchapp to connect with people nearby who share your favorite hobbies and interests." />
       </Helmet>
 
-      {/* Floating Background Effects */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] bg-primary/5 rounded-full blur-[120px]" />
-        <div className="absolute -bottom-[10%] -right-[10%] w-[40%] h-[40%] bg-primary/5 rounded-full blur-[120px]" />
-      </div>
-
-      <div className="w-full h-full max-w-[1400px] flex flex-col lg:flex-row relative z-10 p-4 sm:p-8 lg:p-12 gap-12 lg:gap-20">
+      <div className="w-full h-full max-w-[1300px] flex flex-col lg:flex-row relative z-10 items-center justify-between gap-12 lg:gap-20">
 
         {/* Left Side: Brand Showcase (Visible only on PC) */}
-        <div className="hidden lg:flex flex-1 flex-col justify-center gap-12">
+        <div className="hidden lg:flex flex-1 flex-col justify-center gap-10 max-w-xl">
           <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
           >
-            <div className="w-20 h-20 rounded-[3px] gum-border mb-8 overflow-hidden shadow-2xl transition-transform duration-500">
-              <img src="/fav.jpg" alt="genjutsu" className="w-full h-full object-cover" />
+            <div className="w-16 h-16 rounded-2xl bg-primary/10 border border-primary/20 mb-8 flex items-center justify-center shadow-lg shadow-primary/5 relative overflow-hidden">
+              <img src="/fav.jpg" alt="katchapp" className="w-full h-full object-cover" onError={(e)=>{(e.target as HTMLElement).style.display = 'none';}} />
+              <Compass className="absolute text-primary w-8 h-8" />
             </div>
-            <h1 className="text-7xl font-black tracking-tighter italic mb-6 leading-[0.9]">
-              everything <br />
-              <span className="text-primary italic">vanishes.</span>
+            <h1 className="text-5xl xl:text-6xl font-extrabold tracking-tight mb-6 leading-[1.1]">
+              Find your people, <br />
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-primary/70">share your passions.</span>
             </h1>
-            <p className="text-xl text-muted-foreground max-w-lg leading-relaxed font-medium">
-              the transient social network for developers.
-              share your code, thoughts, and whispers—all gone in 24 hours.
+            <p className="text-lg text-muted-foreground leading-relaxed font-normal">
+              Welcome to katchapp[cite: 17]. Connect effortlessly with friendly locals who love the exact same hobbies, sports, and creative pursuits you do.
             </p>
           </motion.div>
 
-          <div className="grid grid-cols-2 gap-8">
+          <div className="grid grid-cols-2 gap-4">
             {[
-              { label: "Ephemeral", desc: "Posts last 24h" },
-              { label: "Privacy First", desc: "No digital footprint" },
-              { label: "Developer Core", desc: "Code-centric sharing" },
-              { label: "Whispers", desc: "End-to-end ephemeral DMs" }
-            ].map((feature, i) => (
-              <motion.div
-                key={feature.label}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.3 + (i * 0.1) }}
-                className="gum-card p-6 grayscale hover:grayscale-0 transition-all duration-500 hover:scale-105"
-              >
-                <div className="text-primary font-black uppercase tracking-wider text-xs mb-1">{feature.label}</div>
-                <div className="text-foreground text-sm font-bold">{feature.desc}</div>
-              </motion.div>
-            ))}
+              { label: "Local Radar", desc: "Find hobbyists nearby", icon: MapPin },
+              { label: "Shared Passions", desc: "Music, sports & more", icon: Heart },
+              { label: "Community", desc: "Real people, real meetups", icon: Users },
+              { label: "Instant Chat", desc: "Break the ice easily", icon: Sparkles }
+            ].map((feature, i) => {
+              const IconComp = feature.icon;
+              return (
+                <motion.div
+                  key={feature.label}
+                  initial={{ opacity: 0, y: 15 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.2 + (i * 0.1) }}
+                  className="bg-card/60 backdrop-blur-xl border border-border/50 p-5 rounded-2xl shadow-sm hover:border-primary/40 hover:shadow-md transition-all duration-300 flex flex-col justify-between"
+                >
+                  <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center text-primary mb-4">
+                    <IconComp className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div className="text-foreground font-semibold text-sm mb-0.5">{feature.label}</div>
+                    <div className="text-muted-foreground text-xs">{feature.desc}</div>
+                  </div>
+                </motion.div>
+              );
+            })}
           </div>
 
           <motion.div
             initial={{ opacity: 0 }}
-            animate={{ opacity: 0.5 }}
-            transition={{ delay: 0.8 }}
-            className="flex items-center gap-4 text-xs font-black uppercase tracking-[0.3em]"
+            animate={{ opacity: 0.7 }}
+            transition={{ delay: 0.7 }}
+            className="flex items-center gap-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground"
           >
-            <div className="h-px w-10 bg-foreground" />
-            building the future of transient dev-comms
+            <div className="h-px w-8 bg-border" />
+            Your next great friendship starts here
           </motion.div>
         </div>
 
-        {/* Right Side: Auth Form (Centered on mobile, aside on PC) */}
-        <div className="flex-1 flex flex-col justify-center items-center lg:items-end">
-          <div className="w-full max-w-md">
-            <motion.button
-              initial={{ opacity: 0, x: -10 }}
-              animate={{ opacity: 1, x: 0 }}
-              onClick={() => navigate("/")}
-              className="mb-8 inline-flex items-center gap-2 px-4 py-2 gum-card bg-secondary text-sm font-bold hover:bg-primary hover:text-primary-foreground transition-all duration-300 w-fit group"
-            >
-              <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform" />
-              Back to Home
-            </motion.button>
+        {/* Right Side: Auth Form */}
+        <div className="w-full lg:max-w-md flex flex-col justify-center">
+          <motion.button
+            initial={{ opacity: 0, x: -10 }}
+            animate={{ opacity: 1, x: 0 }}
+            onClick={() => navigate("/")}
+            className="mb-6 inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-muted/50 hover:bg-muted text-sm font-medium text-muted-foreground hover:text-foreground transition-all duration-200 w-fit group"
+          >
+            <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform" />
+            Back to Home
+          </motion.button>
 
-            {/* Mobile Header (Visible only on mobile/tablet) */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="lg:hidden text-center mb-10"
-            >
-              <div className="w-16 h-16 rounded-[3px] gum-border mx-auto mb-6 overflow-hidden shadow-xl">
-                <img src="/fav.jpg" alt="genjutsu" className="w-full h-full object-cover" />
-              </div>
-              <h1 className="text-4xl font-black tracking-tighter mb-2 italic">genjutsu</h1>
-              <p className="text-muted-foreground text-sm font-medium">Everything vanishes. Social media for developers.</p>
-            </motion.div>
+          {/* Mobile Header */}
+          <motion.div
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="lg:hidden text-center mb-8"
+          >
+            <div className="w-14 h-14 rounded-2xl bg-primary/10 border border-primary/20 mx-auto mb-4 flex items-center justify-center relative overflow-hidden shadow-md">
+              <img src="/fav.jpg" alt="katchapp" className="w-full h-full object-cover" onError={(e)=>{(e.target as HTMLElement).style.display = 'none';}} />
+              <Compass className="absolute text-primary w-7 h-7" />
+            </div>
+            <h1 className="text-3xl font-extrabold tracking-tight mb-1 text-foreground">katchapp</h1>
+            <p className="text-muted-foreground text-sm">Find friends with similar hobbies near you[cite: 17].</p>
+          </motion.div>
 
-            <motion.div
-              initial={{ opacity: 0, scale: 0.98 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.2 }}
-              className="gum-card p-8 bg-background shadow-[0_32px_64px_-16px_rgba(0,0,0,0.1)] border-primary/10"
-            >
-              <AnimatePresence mode="wait">
-                {!showEmailForm ? (
-                  /* ===== MAIN VIEW: OAuth + Email Entry Point ===== */
-                  <motion.div
-                    key="oauth-view"
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -20 }}
-                    transition={{ duration: 0.2 }}
-                    className="space-y-4"
+          <motion.div
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.15 }}
+            className="bg-card border border-border/60 shadow-2xl shadow-black/5 rounded-3xl p-6 sm:p-8 backdrop-blur-2xl"
+          >
+            <AnimatePresence mode="wait">
+              {!showEmailForm ? (
+                /* ===== MAIN VIEW: OAuth + Email Entry Point ===== */
+                <motion.div
+                  key="oauth-view"
+                  initial={{ opacity: 0, x: -15 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -15 }}
+                  transition={{ duration: 0.2 }}
+                  className="space-y-4"
+                >
+                  <div className="text-center mb-6">
+                    <h2 className="text-xl font-bold tracking-tight mb-1">Welcome to katchapp</h2>
+                    <p className="text-sm text-muted-foreground">Choose how you'd like to connect</p>
+                  </div>
+
+                  {error && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -5 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="text-xs font-medium bg-destructive/10 text-destructive px-4 py-3 rounded-xl border border-destructive/20"
+                    >
+                      {error}
+                    </motion.div>
+                  )}
+
+                  <button
+                    onClick={async () => {
+                      setGoogleLoading(true);
+                      setError("");
+                      const { error } = await signInWithGoogle();
+                      if (error) {
+                        setError(error.message || "Google sign-in failed");
+                        setGoogleLoading(false);
+                      }
+                    }}
+                    disabled={googleLoading}
+                    className="w-full rounded-xl bg-background border border-input text-foreground text-sm font-medium py-3.5 px-4 flex items-center justify-center gap-3 hover:bg-muted/50 hover:border-border transition-all shadow-sm active:scale-[0.98] disabled:opacity-50"
                   >
-                    <div className="text-center mb-6">
-                      <h2 className="text-xl font-black mb-1">Welcome</h2>
-                      <p className="text-sm text-muted-foreground">Choose how you'd like to continue</p>
+                    {googleLoading ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <Sparkles className="animate-pulse" size={16} />
+                        Redirecting...
+                      </span>
+                    ) : (
+                      <>
+                        <svg width="18" height="18" viewBox="0 0 48 48">
+                          <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
+                          <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" />
+                          <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
+                          <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
+                        </svg>
+                        <span>Continue with Google</span>
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    onClick={async () => {
+                      setGithubLoading(true);
+                      setError("");
+                      const { error } = await signInWithGitHub();
+                      if (error) {
+                        setError(error.message || "GitHub sign-in failed");
+                        setGithubLoading(false);
+                      }
+                    }}
+                    disabled={githubLoading}
+                    className="w-full rounded-xl bg-background border border-input text-foreground text-sm font-medium py-3.5 px-4 flex items-center justify-center gap-3 hover:bg-muted/50 hover:border-border transition-all shadow-sm active:scale-[0.98] disabled:opacity-50"
+                  >
+                    {githubLoading ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <Sparkles className="animate-pulse" size={16} />
+                        Redirecting...
+                      </span>
+                    ) : (
+                      <>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
+                        </svg>
+                        <span>Continue with GitHub</span>
+                      </>
+                    )}
+                  </button>
+
+                  <div className="flex items-center gap-4 my-3">
+                    <div className="flex-1 h-px bg-border/60" />
+                    <span className="text-xs font-medium text-muted-foreground uppercase tracking-widest">or</span>
+                    <div className="flex-1 h-px bg-border/60" />
+                  </div>
+
+                  <button
+                    onClick={() => { setShowEmailForm(true); setForgotPasswordMode(false); setError(""); setSuccess(""); }}
+                    className="w-full rounded-xl bg-background border border-input text-foreground text-sm font-medium py-3.5 px-4 flex items-center justify-center gap-3 hover:bg-muted/50 hover:border-border transition-all shadow-sm active:scale-[0.98]"
+                  >
+                    <Mail size={18} className="text-muted-foreground" />
+                    <span>Continue with Email</span>
+                  </button>
+                </motion.div>
+              ) : (
+                /* ===== EMAIL FORM VIEW: Sign In / Sign Up ===== */
+                <motion.div
+                  key="email-view"
+                  initial={{ opacity: 0, x: 15 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 15 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => { setShowEmailForm(false); setForgotPasswordMode(false); setError(""); setSuccess(""); }}
+                    className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors mb-6 group"
+                  >
+                    <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform" />
+                    All sign in options
+                  </button>
+
+                  {!forgotPasswordMode ? (
+                    <div className="flex p-1 bg-muted/60 rounded-xl mb-6">
+                      {["Sign In", "Sign Up"].map((tab, i) => (
+                        <button
+                          key={tab}
+                          type="button"
+                          onClick={() => { setIsSignUp(i === 1); setError(""); setSuccess(""); }}
+                          className={`flex-1 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 ${(i === 0 && !isSignUp) || (i === 1 && isSignUp)
+                            ? "bg-background text-foreground shadow-sm font-semibold"
+                            : "text-muted-foreground hover:text-foreground"
+                            }`}
+                        >
+                          {tab}
+                        </button>
+                      ))}
                     </div>
+                  ) : (
+                    <div className="mb-6 text-center space-y-1">
+                      <h2 className="text-xl font-bold">Reset Password</h2>
+                      <p className="text-xs text-muted-foreground">Enter your email and we'll send you a secure reset link.</p>
+                    </div>
+                  )}
+
+                  <form onSubmit={handleSubmit} className="space-y-4">
+                    {isSignUp && !forgotPasswordMode && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        className="space-y-4 overflow-hidden"
+                      >
+                        <div>
+                          <label className="text-xs font-semibold text-muted-foreground mb-1.5 block">
+                            Username
+                          </label>
+                          <input
+                            id="username"
+                            name="username"
+                            type="text"
+                            value={username}
+                            onChange={(e) => setUsername(e.target.value)}
+                            placeholder="hobbymaster99"
+                            className="w-full px-4 py-3 bg-background border border-input rounded-xl text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-muted-foreground/40"
+                            required
+                            autoComplete="username"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs font-semibold text-muted-foreground mb-1.5 block">
+                            Display Name
+                          </label>
+                          <input
+                            id="display_name"
+                            name="display_name"
+                            type="text"
+                            value={displayName}
+                            onChange={(e) => setDisplayName(e.target.value)}
+                            placeholder="Alex Rivers"
+                            className="w-full px-4 py-3 bg-background border border-input rounded-xl text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-muted-foreground/40"
+                            required
+                          />
+                        </div>
+                      </motion.div>
+                    )}
+
+                    <div>
+                      <label className="text-xs font-semibold text-muted-foreground mb-1.5 block">
+                        Email
+                      </label>
+                      <input
+                        id="email"
+                        name="email"
+                        type="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="you@example.com"
+                        className="w-full px-4 py-3 bg-background border border-input rounded-xl text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-muted-foreground/40"
+                        required
+                        autoComplete="email"
+                      />
+                    </div>
+
+                    {!forgotPasswordMode && (
+                      <div>
+                        <label className="text-xs font-semibold text-muted-foreground mb-1.5 block">
+                          Password
+                        </label>
+                        <div className="relative">
+                          <input
+                            id="password"
+                            name="password"
+                            type={showPassword ? "text" : "password"}
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            placeholder="••••••••"
+                            className="w-full px-4 py-3 bg-background border border-input rounded-xl text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 pr-12 transition-all placeholder:text-muted-foreground/40"
+                            required
+                            autoComplete={isSignUp ? "new-password" : "current-password"}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowPassword(!showPassword)}
+                            className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                          >
+                            {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                          </button>
+                        </div>
+                        {!isSignUp && (
+                          <div className="flex justify-end mt-2">
+                            <button
+                              type="button"
+                              onClick={() => { setForgotPasswordMode(true); setError(""); setSuccess(""); }}
+                              className="text-xs font-medium text-primary hover:underline"
+                            >
+                              Forgot password?
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                     {error && (
                       <motion.div
-                        initial={{ opacity: 0, x: -10 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        className="text-xs font-bold bg-destructive/10 text-destructive px-4 py-3 rounded-[3px] border-2 border-destructive/20"
+                        initial={{ opacity: 0, y: -5 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="text-xs font-medium bg-destructive/10 text-destructive px-4 py-3 rounded-xl border border-destructive/20"
                       >
                         {error}
                       </motion.div>
                     )}
 
-                    <button
-                      onClick={async () => {
-                        setGoogleLoading(true);
-                        setError("");
-                        const { error } = await signInWithGoogle();
-                        if (error) {
-                          setError(error.message || "Google sign-in failed");
-                          setGoogleLoading(false);
-                        }
-                      }}
-                      disabled={googleLoading}
-                      className="w-full gum-btn bg-background gum-border text-sm py-4 flex items-center justify-center gap-3 hover:bg-secondary hover:shadow-md transition-all active:scale-[0.98] disabled:opacity-50"
-                    >
-                      {googleLoading ? (
-                        <span className="flex items-center justify-center gap-2">
-                          <Sparkles className="animate-pulse" size={16} />
-                          Redirecting...
-                        </span>
-                      ) : (
-                        <>
-                          <svg width="20" height="20" viewBox="0 0 48 48">
-                            <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
-                            <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" />
-                            <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
-                            <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
-                          </svg>
-                          <span className="font-bold">Continue with Google</span>
-                        </>
-                      )}
-                    </button>
-
-                    <button
-                      onClick={async () => {
-                        setGithubLoading(true);
-                        setError("");
-                        const { error } = await signInWithGitHub();
-                        if (error) {
-                          setError(error.message || "GitHub sign-in failed");
-                          setGithubLoading(false);
-                        }
-                      }}
-                      disabled={githubLoading}
-                      className="w-full gum-btn bg-background gum-border text-sm py-4 flex items-center justify-center gap-3 hover:bg-secondary hover:shadow-md transition-all active:scale-[0.98] disabled:opacity-50"
-                    >
-                      {githubLoading ? (
-                        <span className="flex items-center justify-center gap-2">
-                          <Sparkles className="animate-pulse" size={16} />
-                          Redirecting...
-                        </span>
-                      ) : (
-                        <>
-                          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
-                          </svg>
-                          <span className="font-bold">Continue with GitHub</span>
-                        </>
-                      )}
-                    </button>
-
-                    <div className="flex items-center gap-4 my-4">
-                      <div className="flex-1 h-px bg-foreground/10" />
-                      <span className="text-[10px] font-black uppercase text-muted-foreground/50 tracking-widest">or</span>
-                      <div className="flex-1 h-px bg-foreground/10" />
-                    </div>
-
-                    <button
-                      onClick={() => { setShowEmailForm(true); setForgotPasswordMode(false); setError(""); setSuccess(""); }}
-                      className="w-full gum-btn bg-background gum-border text-sm py-4 flex items-center justify-center gap-3 hover:bg-secondary hover:shadow-md transition-all active:scale-[0.98]"
-                    >
-                      <Mail size={20} />
-                      <span className="font-bold">Continue with Email</span>
-                    </button>
-                  </motion.div>
-                ) : (
-                  /* ===== EMAIL FORM VIEW: Sign In / Sign Up ===== */
-                  <motion.div
-                    key="email-view"
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: 20 }}
-                    transition={{ duration: 0.2 }}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => { setShowEmailForm(false); setForgotPasswordMode(false); setError(""); setSuccess(""); }}
-                      className="inline-flex items-center gap-2 text-sm font-bold text-muted-foreground hover:text-foreground transition-colors mb-6 group"
-                    >
-                      <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform" />
-                      All sign in options
-                    </button>
-
-                    {!forgotPasswordMode ? (
-                      <div className="flex p-1 bg-secondary rounded-[3px] mb-8">
-                        {["Sign In", "Sign Up"].map((tab, i) => (
-                          <button
-                            key={tab}
-                            type="button"
-                            onClick={() => { setIsSignUp(i === 1); setError(""); setSuccess(""); }}
-                            className={`flex-1 py-3 text-sm font-bold rounded-[3px] transition-all duration-300 ${(i === 0 && !isSignUp) || (i === 1 && isSignUp)
-                              ? "bg-background text-foreground shadow-md scale-[1.02]"
-                              : "text-muted-foreground hover:text-foreground"
-                              }`}
-                          >
-                            {tab}
-                          </button>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="mb-8 text-center space-y-2">
-                        <h2 className="text-xl font-black">Reset Password</h2>
-                        <p className="text-sm text-muted-foreground">Enter your email and we'll send you a secure reset link. For your protection, links expire after a short time.</p>
-                      </div>
+                    {success && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 5 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="text-xs font-medium bg-primary/10 text-primary-foreground text-foreground px-4 py-3 rounded-xl border border-primary/20"
+                      >
+                        {success}
+                      </motion.div>
                     )}
 
-                    <form onSubmit={handleSubmit} className="space-y-5">
-                      {isSignUp && !forgotPasswordMode && (
-                        <motion.div
-                          initial={{ opacity: 0, height: 0 }}
-                          animate={{ opacity: 1, height: "auto" }}
-                          className="space-y-5 overflow-hidden"
-                        >
-                          <div>
-                            <label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/60 mb-2 block">
-                              Username
-                            </label>
-                            <input
-                              id="username"
-                              name="username"
-                              type="text"
-                              value={username}
-                              onChange={(e) => setUsername(e.target.value)}
-                              placeholder="cooldev42"
-                              className="w-full px-4 py-3 bg-secondary/30 gum-border rounded-[3px] text-sm outline-none focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-muted-foreground/30"
-                              required
-                              autoComplete="username"
-                            />
-                          </div>
-                          <div>
-                            <label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/60 mb-2 block">
-                              Display Name
-                            </label>
-                            <input
-                              id="display_name"
-                              name="display_name"
-                              type="text"
-                              value={displayName}
-                              onChange={(e) => setDisplayName(e.target.value)}
-                              placeholder="Cool Developer"
-                              className="w-full px-4 py-3 bg-secondary/30 gum-border rounded-[3px] text-sm outline-none focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-muted-foreground/30"
-                              required
-                            />
-                          </div>
-                        </motion.div>
-                      )}
+                    <button
+                      type="submit"
+                      disabled={submitting}
+                      className="w-full rounded-xl bg-primary text-primary-foreground text-sm py-3.5 font-semibold shadow-lg shadow-primary/25 hover:opacity-95 active:scale-[0.98] transition-all disabled:opacity-50 mt-2"
+                    >
+                      {submitting ? (
+                        <span className="flex items-center justify-center gap-2">
+                          <FrogLoader size={16} />
+                          Processing...
+                        </span>
+                      ) : forgotPasswordMode ? "Send Reset Link" : isSignUp ? "Create Account" : "Sign In"}
+                    </button>
 
-                      <div>
-                        <label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/60 mb-2 block">
-                          Email
-                        </label>
-                        <input
-                          id="email"
-                          name="email"
-                          type="email"
-                          value={email}
-                          onChange={(e) => setEmail(e.target.value)}
-                          placeholder="you@dev.com"
-                          className="w-full px-4 py-3 bg-secondary/30 gum-border rounded-[3px] text-sm outline-none focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-muted-foreground/30"
-                          required
-                          autoComplete="email"
-                        />
-                      </div>
-
-                      {!forgotPasswordMode && (
-                        <div>
-                          <label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/60 mb-2 block">
-                            Password
-                          </label>
-                          <div className="relative">
-                            <input
-                              id="password"
-                              name="password"
-                              type={showPassword ? "text" : "password"}
-                              value={password}
-                              onChange={(e) => setPassword(e.target.value)}
-                              placeholder="••••••••"
-                              className="w-full px-4 py-3 bg-secondary/30 gum-border rounded-[3px] text-sm outline-none focus:ring-2 focus:ring-primary/20 pr-12 transition-all placeholder:text-muted-foreground/30"
-                              required
-                              autoComplete={isSignUp ? "new-password" : "current-password"}
-                            />
-                            <button
-                              type="button"
-                              onClick={() => setShowPassword(!showPassword)}
-                              className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                            >
-                              {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                            </button>
-                          </div>
-                          {!isSignUp && (
-                            <button
-                              type="button"
-                              onClick={() => { setForgotPasswordMode(true); setError(""); setSuccess(""); }}
-                              className="mt-3 text-xs font-bold text-primary hover:underline"
-                            >
-                              Forgot password?
-                            </button>
-                          )}
-                        </div>
-                      )}
-
-                      {error && (
-                        <motion.div
-                          initial={{ opacity: 0, x: -10 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          className="text-xs font-bold bg-destructive/10 text-destructive px-4 py-3 rounded-[3px] border-2 border-destructive/20"
-                        >
-                          {error}
-                        </motion.div>
-                      )}
-
-                      {success && (
-                        <motion.div
-                          initial={{ opacity: 0, x: 10 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          className="text-xs font-bold bg-primary/10 text-foreground px-4 py-3 rounded-[3px] gum-border"
-                        >
-                          {success}
-                        </motion.div>
-                      )}
-
+                    {forgotPasswordMode && (
                       <button
-                        type="submit"
-                        disabled={submitting}
-                        className="w-full gum-btn bg-primary text-primary-foreground text-sm py-4 font-bold shadow-lg hover:shadow-xl active:scale-[0.98] transition-all disabled:opacity-50 mt-2"
+                        type="button"
+                        onClick={() => { setForgotPasswordMode(false); setError(""); setSuccess(""); navigate("/auth", { replace: true }); }}
+                        className="w-full text-xs font-medium text-muted-foreground hover:text-foreground transition-colors mt-2"
                       >
-                        {submitting ? (
-                          <span className="flex items-center justify-center gap-2">
-                            <FrogLoader size={16} />
-                            Processing...
-                          </span>
-                        ) : forgotPasswordMode ? "Send Reset Link" : isSignUp ? "Create Account" : "Sign In"}
+                        Back to sign in
                       </button>
-
-                      {forgotPasswordMode && (
-                        <button
-                          type="button"
-                          onClick={() => { setForgotPasswordMode(false); setError(""); setSuccess(""); navigate("/auth", { replace: true }); }}
-                          className="w-full text-xs font-bold text-muted-foreground hover:text-foreground transition-colors"
-                        >
-                          Back to sign in
-                        </button>
-                      )}
-                    </form>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </motion.div>
-          </div>
+                    )}
+                  </form>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </motion.div>
         </div>
       </div>
     </div>

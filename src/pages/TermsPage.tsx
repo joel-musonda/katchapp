@@ -17,16 +17,6 @@ const TermsPage = () => {
             description: "You own what you post. However, keep in mind everything decays after 24 hours. We are not responsible for lost snippets or media. Back up anything important beforehand."
         },
         {
-            icon: <Swords className="text-primary" size={20} />,
-            title: "3. Ephemeral Gameplay & Conduct",
-            description: "When playing online multiplayer games or submitting HTML5 mini-games to the Game House, you agree not to use exploits, cheats, or upload games containing malicious code."
-        },
-        {
-            icon: <Ban className="text-primary" size={20} />,
-            title: "4. Abuse & API Exploitation",
-            description: "Attempting to scrape the public feed, spam WebSocket channels, bypass the 24-hour purge CRON jobs, or brute-force account/MFA gates is an automatic ground for restriction."
-        },
-        {
             icon: <UserX className="text-primary" size={20} />,
             title: "5. Absolute Termination",
             description: "We reserve the right to restrict access, delete credentials, or ban any account without prior notice if they pose a threat to the community's stability or user safety."
@@ -56,8 +46,8 @@ const TermsPage = () => {
                         </Link>
                         
                         <div className="space-y-2">
-                            <span className="text-xs uppercase tracking-widest text-primary font-bold">// Terms of Service</span>
-                            <h1 className="text-4xl font-extrabold tracking-tight">The Rules of the Illusion</h1>
+                            <span className="text-xs uppercase tracking-widest text-primary font-bold">Terms of Service</span>
+                            <h1 className="text-4xl font-extrabold tracking-tight">Katchapp has very few rules to ensure everyone's safety</h1>
                             <p className="text-muted-foreground text-sm max-w-xl">
                                 Simple rules for a self-cleaning world. Play fair, write clean code, and respect the ephemeral nature of the platform.
                             </p>
@@ -85,7 +75,7 @@ const TermsPage = () => {
                     </div>
 
                     <div className="pt-6 border-t border-border/40 text-[11px] text-muted-foreground">
-                        Last updated: May 2026. These terms govern the genjutsu platform. Abuse the rules, and you leave the illusion.
+                        Last updated: May 2026. These terms govern the katchapp platform. Abuse the rules, and you will be removed from the platform.
                     </div>
                 </motion.div>
             </main>

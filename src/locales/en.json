@@ -56,14 +56,14 @@
     "privacy": "Privacy",
     "copyright": "© 2026 KatchApp. All rights reserved.",
     "reportBug": "Report Bug",
-    "requestFeature": "Request Feature"
+    "requestFeature": "Suggest Feature"
   },
   "feed": {
     "joinConversation": "Join the conversation",
-    "signInToShare": "Sign in to share what you're building",
+    "signInToShare": "Sign in to share with otheres",
     "getStarted": "Get Started",
-    "noIllusions": "No illusions active in the world right now.",
-    "beTheFirst": "Be the first to cast a spell.",
+    "noIllusions": "No one is currently active.",
+    "beTheFirst": "Be the first to send a message.",
     "whatAreYouBuilding": "What's on your mind? (use hashtags or mentions)",
     "spellCastSuccess": "Spell cast successfully",
     "castSpell": "Post"
